@@ -51,6 +51,28 @@ function App() {
         // Merge settlement data with polygons
         const mergedPlaces = mergePlacesData(placesGeoJSON, settlementResults);
         setPlaces(mergedPlaces);
+        
+        // If there's a selected region, update it with new election data
+        if (selectedRegion) {
+          const isSettlement = 'ekatte' in selectedRegion.properties;
+          if (isSettlement) {
+            // Find the same settlement in new data
+            const updatedPlace = mergedPlaces.find(
+              p => p.properties.ekatte === selectedRegion.properties.ekatte
+            );
+            if (updatedPlace) {
+              setSelectedRegion(updatedPlace);
+            }
+          } else {
+            // Find the same municipality in new data
+            const updatedMunicipality = mergedMunicipalities.find(
+              m => m.properties.name === selectedRegion.properties.name
+            );
+            if (updatedMunicipality) {
+              setSelectedRegion(updatedMunicipality);
+            }
+          }
+        }
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {

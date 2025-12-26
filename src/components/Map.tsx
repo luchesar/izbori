@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import type { MunicipalityData, Place, SelectedRegion } from '../types';
@@ -15,12 +15,14 @@ interface MapProps {
 // Component to adjust map view bounds based on data
 function MapBounds({ data }: { data: MunicipalityData[] }) {
   const map = useMap();
+  const hasInitialized = React.useRef(false);
 
   useEffect(() => {
-    if (data.length > 0) {
+    if (data.length > 0 && !hasInitialized.current) {
       // Create a feature group to calculate bounds
       const geoJsonLayer = L.geoJSON(data as any);
       map.fitBounds(geoJsonLayer.getBounds(), { padding: [20, 20] });
+      hasInitialized.current = true;
     }
   }, [data, map]);
 
