@@ -60,7 +60,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
               <button 
                 onClick={onClose}
                 className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label="Close details"
+                aria-label="Затвори детайли"
               >
                 <X size={20} className="text-gray-500 dark:text-gray-400" />
               </button>
@@ -78,7 +78,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                                     {data.electionData?.totalVotes.toLocaleString()}
                                 </span>
                                 <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
-                                    Total Votes
+                                    Общо гласове
                                 </span>
                             </div>
                             <div className="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl flex flex-col items-center justify-center text-center">
@@ -87,7 +87,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                                     {(data.electionData!.activity * 100).toFixed(1)}%
                                 </span>
                                 <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
-                                    Activity
+                                    Активност
                                 </span>
                             </div>
                         </div>
@@ -95,7 +95,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                         {/* Parties Table */}
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                                Results
+                                Резултати
                             </h3>
                             <div className="space-y-3">
                                 {data.electionData?.topParties.map((result, idx) => (
@@ -121,7 +121,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                                             />
                                         </div>
                                         <div className="text-xs text-gray-400 mt-0.5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {result.votes.toLocaleString()} votes
+                                             {result.votes.toLocaleString()} гласа
                                         </div>
                                     </div>
                                 ))}
@@ -130,7 +130,7 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                     </>
                 ) : (
                     <div className="text-center text-gray-500 py-8">
-                        No election data available for detailed settlements yet.
+                        Няма изборни данни за това населено място
                     </div>
                 )}
             </div>

@@ -49,8 +49,13 @@ export interface Place {
     obshtina: string;
   };
   geometry: {
-    type: "Polygon" | "MultiPolygon";
-    coordinates: number[][][] | number[][][][];
+    type: "Polygon" | "MultiPolygon" | "Point";
+    coordinates: number[][][] | number[][][][] | number[];
+  };
+  electionData?: {
+    totalVotes: number;
+    activity: number;
+    topParties: Array<{ party: string; votes: number; percentage: number }>;
   };
 }
 

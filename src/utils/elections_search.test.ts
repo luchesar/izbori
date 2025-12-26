@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { searchRegions } from './data';
+import { searchRegions } from './elections';
 import type { MunicipalityData, Place, SelectedRegion } from '../types';
 
 describe('searchRegions', () => {

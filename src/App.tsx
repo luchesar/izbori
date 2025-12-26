@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import BottomSheet from './components/BottomSheet';
 import SearchBar from './components/SearchBar';
-import type { MunicipalityData, SelectedRegion, Place, PlaceGeoJSON } from './types';
-import { fetchMunicipalities, fetchElectionResults, mergeData, fetchPlaces, searchRegions } from './utils/data';
+import type { MunicipalityData, SelectedRegion, Place } from './types';
+import { 
+  loadMunicipalitiesGeoJSON, 
+  loadPlacesData,
+  getElectionData, 
+  mergeData,
+  mergePlacesData,
+  aggregateSettlementsToMunicipalities,
+  searchRegions 
+} from './utils/elections';
 
 function App() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
@@ -14,19 +22,24 @@ function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [geo, results, placesData] = await Promise.all([
-          fetchMunicipalities(),
-          fetchElectionResults(),
-          fetchPlaces()
+        // Load geographic data and settlement election data
+        const [geo, placesData, settlementResults] = await Promise.all([
+          loadMunicipalitiesGeoJSON(),
+          loadPlacesData(),
+          getElectionData({ electionId: '2024-10-27', regionType: 'settlement' })
         ]);
-        const merged = mergeData(geo, results);
-        setMunicipalities(merged);
         
-        if ('features' in placesData) {
-            setPlaces((placesData as PlaceGeoJSON).features);
-        } else {
-             setPlaces((placesData as any));
-        }
+        // For 2024-10-27, there's no municipality CSV file, so aggregate from settlements
+        const mergedMunicipalities = aggregateSettlementsToMunicipalities(
+          placesData, 
+          settlementResults, 
+          geo
+        );
+        setMunicipalities(mergedMunicipalities);
+        
+        // Merge settlement data
+        const mergedPlaces = mergePlacesData(placesData, settlementResults);
+        setPlaces(mergedPlaces);
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
@@ -51,7 +64,7 @@ function App() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-black text-gray-500">
-        Loading Data...
+        Зареждане на данни...
       </div>
     );
   }

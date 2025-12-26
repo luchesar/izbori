@@ -84,7 +84,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
               {results.map((result) => {
                  const isMunicipality = 'electionData' in result; // or check properties structure
                  const name = result.properties.name;
-                 const type = isMunicipality ? 'Municipality' : 'Place';
+                 const type = isMunicipality ? 'Община' : 'Населено място';
                  
                  return (
                     <li key={result.properties.name + ('ekatte' in result.properties ? result.properties.ekatte : 'mun')}>
