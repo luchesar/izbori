@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import type { MunicipalityGeoJSON, ElectionResult, MunicipalityData, PlaceGeoJSON } from '../types';
+import type { MunicipalityGeoJSON, ElectionResult, MunicipalityData, PlaceGeoJSON, Place, SelectedRegion } from '../types';
 
 // Hardcoded paths for now, relative to public directory (which maps to root URL in Vite)
 const MUNICIPALITIES_URL = '/assets/data/geo/municipalities.json';
@@ -112,4 +112,24 @@ export function mergeData(
         electionData
     };
   });
+}
+
+export function searchRegions(
+  query: string, 
+  municipalities: MunicipalityData[], 
+  places: Place[]
+): SelectedRegion[] {
+  if (!query || query.length < 2) return [];
+  
+  const lowerQuery = query.toLowerCase();
+  
+  const matchedMunicipalities = municipalities.filter(m => 
+    m.properties.name.toLowerCase().includes(lowerQuery)
+  );
+  
+  const matchedPlaces = places.filter(p => 
+    p.properties.name.toLowerCase().includes(lowerQuery)
+  );
+  
+  return [...matchedMunicipalities, ...matchedPlaces].slice(0, 10);
 }
