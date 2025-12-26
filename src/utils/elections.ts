@@ -191,13 +191,21 @@ export async function getElectionData(request: RegionDataRequest): Promise<Recor
           }
       });
 
+      // Calculate activity (turnout) if not present in CSV
+      // Settlement CSVs don't have activity column, municipality CSVs do
+      const totalVotes = row.total || row.total_valid || 0;
+      const eligibleVoters = row.eligible_voters || 0;
+      const activity = row.activity !== undefined 
+          ? row.activity 
+          : (eligibleVoters > 0 ? totalVotes / eligibleVoters : 0);
+
       processed[key] = {
           id: key,
-          total: row.total || row.total_valid || 0,
+          total: totalVotes,
           results: partyResults,
           meta: {
-              activity: row.activity,
-              eligible: row.eligible_voters
+              activity: activity,
+              eligible: eligibleVoters
           }
       };
   });
@@ -264,15 +272,19 @@ export function mergeData(
 }
 
 /**
- * Merges settlement (place) data from places.json with election results
+ * Merges settlement (place) GeoJSON data with election results
  * Links data using EKATTE codes (5-character strings with leading zeros)
+ * Works with places.geojson which already has polygon/multipolygon geometries
  */
 export function mergePlacesData(
-  placesData: any[], // From places.json
+  placesGeoJSON: any, // GeoJSON FeatureCollection from places.geojson
   electionResults: Record<string, any> // From getElectionData with settlement type
 ): Place[] {
-  return placesData.map(place => {
-    const ekatte = place.ekatte;
+  // If it's a FeatureCollection, use the features array
+  const features = placesGeoJSON.features || placesGeoJSON;
+  
+  return features.map((feature: any) => {
+    const ekatte = feature.properties.ekatte;
     const data = electionResults[ekatte];
     
     let electionData = undefined;
@@ -292,21 +304,11 @@ export function mergePlacesData(
         };
     }
 
-    // Convert places.json format to Place GeoJSON feature format
+    // Return the feature with electionData attached
     return {
-        type: "Feature",
-        properties: {
-            ekatte: place.ekatte,
-            name: place.name,
-            oblast: place.oblast,
-            obshtina: place.obshtina
-        },
-        geometry: {
-            type: "Point",
-            coordinates: [place.lng, place.lat]
-        },
+        ...feature,
         electionData
-    } as any; // Cast to any to match Place type which expects Polygon/MultiPolygon
+    } as Place;
   });
 }
 

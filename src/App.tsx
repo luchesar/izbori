@@ -5,7 +5,7 @@ import SearchBar from './components/SearchBar';
 import type { MunicipalityData, SelectedRegion, Place } from './types';
 import { 
   loadMunicipalitiesGeoJSON, 
-  loadPlacesData,
+  loadSettlementsGeoJSON,
   getElectionData, 
   mergeData,
   mergePlacesData,
@@ -23,22 +23,30 @@ function App() {
     async function loadData() {
       try {
         // Load geographic data and settlement election data
-        const [geo, placesData, settlementResults] = await Promise.all([
+        const [geo, placesGeoJSON, settlementResults] = await Promise.all([
           loadMunicipalitiesGeoJSON(),
-          loadPlacesData(),
+          loadSettlementsGeoJSON(), // This loads places.geojson with polygons
           getElectionData({ electionId: '2024-10-27', regionType: 'settlement' })
         ]);
         
         // For 2024-10-27, there's no municipality CSV file, so aggregate from settlements
+        // Need to extract place data for aggregation from GeoJSON features
+        const placesDataForAgg = placesGeoJSON.features.map((f: any) => ({
+          ekatte: f.properties.ekatte,
+          name: f.properties.name,
+          oblast: f.properties.oblast,
+          obshtina: f.properties.obshtina
+        }));
+        
         const mergedMunicipalities = aggregateSettlementsToMunicipalities(
-          placesData, 
+          placesDataForAgg, 
           settlementResults, 
           geo
         );
         setMunicipalities(mergedMunicipalities);
         
-        // Merge settlement data
-        const mergedPlaces = mergePlacesData(placesData, settlementResults);
+        // Merge settlement data with polygons
+        const mergedPlaces = mergePlacesData(placesGeoJSON, settlementResults);
         setPlaces(mergedPlaces);
       } catch (error) {
         console.error("Failed to load data:", error);
