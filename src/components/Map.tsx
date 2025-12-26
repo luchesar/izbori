@@ -66,7 +66,7 @@ function RegionNavigator({ region, shouldNavigate }: { region: SelectedRegion | 
         
         // Then pan to offset center
         const point = map.latLngToContainerPoint(center);
-        point.y -= offsetPixels; // Move up
+        point.y += offsetPixels; // Move up (y increases downward in screen coords)
         const offsetCenter = map.containerPointToLatLng(point);
         
         map.setView(offsetCenter, map.getZoom(), {
