@@ -7,10 +7,33 @@ import { useState } from 'react';
 
 interface BottomSheetProps {
   data: SelectedRegion | null;
+  electionDate: string;
   onClose: () => void;
 }
 
-export default function BottomSheet({ data, onClose }: BottomSheetProps) {
+// Bulgarian month names
+const BULGARIAN_MONTHS: Record<string, string> = {
+  '01': 'Януари',
+  '02': 'Февруари',
+  '03': 'Март',
+  '04': 'Април',
+  '05': 'Май',
+  '06': 'Юни',
+  '07': 'Юли',
+  '08': 'Август',
+  '09': 'Септември',
+  '10': 'Октомври',
+  '11': 'Ноември',
+  '12': 'Декември'
+};
+
+function formatElectionDate(electionId: string): string {
+  const [year, month, day] = electionId.split('-');
+  const monthName = BULGARIAN_MONTHS[month] || month;
+  return `${day} ${monthName} ${year}`;
+}
+
+export default function BottomSheet({ data, electionDate, onClose }: BottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Helper to check if data has election results
@@ -83,6 +106,8 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
                       ) : (
                            <span>NUTS4: {data.properties.nuts4}</span>
                       )}
+                      <span>•</span>
+                      <span>{formatElectionDate(electionDate)}</span>
                   </div>
                 </div>
                 <button 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import BottomSheet from './components/BottomSheet';
 import SearchBar from './components/SearchBar';
+import ElectionSelector from './components/ElectionSelector';
 import type { MunicipalityData, SelectedRegion, Place } from './types';
 import { 
   loadMunicipalitiesGeoJSON, 
@@ -16,6 +17,7 @@ import {
 function App() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [selectedElection, setSelectedElection] = useState('2024-10-27');
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,8 +28,8 @@ function App() {
         // Load geographic data and settlement election data
         const [geo, placesGeoJSON, settlementResults] = await Promise.all([
           loadMunicipalitiesGeoJSON(),
-          loadSettlementsGeoJSON(), // This loads places.geojson with polygons
-          getElectionData({ electionId: '2024-10-27', regionType: 'settlement' })
+          loadSettlementsGeoJSON(),
+          getElectionData({ electionId: selectedElection, regionType: 'settlement' })
         ]);
         
         // For 2024-10-27, there's no municipality CSV file, so aggregate from settlements
@@ -56,7 +58,7 @@ function App() {
       }
     }
     loadData();
-  }, []);
+  }, [selectedElection]); // Reload when election changes
 
   // Handle selection from map click - no navigation
   const handleRegionSelect = (data: SelectedRegion) => {
@@ -90,6 +92,10 @@ function App() {
   return (
     <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative">
       <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
+      <ElectionSelector 
+        selectedElection={selectedElection}
+        onElectionChange={setSelectedElection}
+      />
       
       <Map 
         municipalities={municipalities}
@@ -101,6 +107,7 @@ function App() {
       
       <BottomSheet 
         data={selectedRegion} 
+        electionDate={selectedElection}
         onClose={handleCloseSheet} 
       />
     </div>
