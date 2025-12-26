@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import type { PanInfo } from 'framer-motion';
 import { X, Users, Activity } from 'lucide-react';
 import type { SelectedRegion, MunicipalityData } from '../types';
 import clsx from 'clsx';
+import { useState } from 'react';
 
 interface BottomSheetProps {
   data: SelectedRegion | null;
@@ -9,9 +11,24 @@ interface BottomSheetProps {
 }
 
 export default function BottomSheet({ data, onClose }: BottomSheetProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // Helper to check if data has election results
   const hasElectionData = (d: SelectedRegion): d is MunicipalityData => {
     return 'electionData' in d && !!d.electionData;
+  };
+
+  const handleDragEnd = (_: any, info: PanInfo) => {
+    if (info.offset.y > 100) {
+      // Dragged down - close
+      onClose();
+    } else if (info.offset.y < -100 && !isExpanded) {
+      // Dragged up - expand
+      setIsExpanded(true);
+    } else if (info.offset.y > 50 && isExpanded) {
+      // Dragged down from expanded - collapse to half
+      setIsExpanded(false);
+    }
   };
 
   return (
@@ -30,65 +47,75 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
           {/* Sheet */}
           <motion.div
             initial={{ y: '100%' }}
-            animate={{ y: 0 }}
+            animate={{ y: isExpanded ? 0 : '50%' }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 max-h-[80vh] flex flex-col md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.2}
+            onDragEnd={handleDragEnd}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 h-[90vh] flex flex-col md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe"
           >
-            {/* Handle bar for mobile hint */}
-            <div className="w-full flex justify-center pt-3 pb-1 md:hidden" onClick={onClose}>
+            {/* Handle bar - tap to expand/collapse */}
+            <div 
+              className="w-full flex justify-center pt-3 pb-1 cursor-pointer" 
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
                 <div className="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full cursor-pointer" />
             </div>
 
             {/* Header */}
-            <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {data.properties.name}
-                </h2>
-                <div className="flex flex-col text-sm text-gray-500 dark:text-gray-400">
-                    {'ekatte' in data.properties ? (
-                        <>
-                            <span>Obshtina: {data.properties.obshtina}</span>
-                            <span>Oblast: {data.properties.oblast}</span>
-                        </>
-                    ) : (
-                         <span>NUTS4: {data.properties.nuts4}</span>
-                    )}
+            <div className="px-6 py-3 border-b border-gray-100 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                    {data.properties.name}
+                  </h2>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      {'ekatte' in data.properties ? (
+                          <>
+                              <span>Община: {data.properties.obshtina}</span>
+                              <span>•</span>
+                              <span>Област: {data.properties.oblast}</span>
+                          </>
+                      ) : (
+                           <span>NUTS4: {data.properties.nuts4}</span>
+                      )}
+                  </div>
                 </div>
+                <button 
+                  onClick={onClose}
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors ml-2 flex-shrink-0"
+                  aria-label="Затвори детайли"
+                >
+                  <X size={18} className="text-gray-500 dark:text-gray-400" />
+                </button>
               </div>
-              <button 
-                onClick={onClose}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label="Затвори детайли"
-              >
-                <X size={20} className="text-gray-500 dark:text-gray-400" />
-              </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {hasElectionData(data) ? (
                     <>
                         {/* Stats */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl flex flex-col items-center justify-center text-center">
-                                <Users size={20} className="text-blue-500 mb-2" />
-                                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                        <div className="flex gap-4 text-center">
+                            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
+                                    <Users size={14} className="text-blue-500" />
                                     {data.electionData?.totalVotes.toLocaleString()}
-                                </span>
-                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
                                     Общо гласове
-                                </span>
+                                </div>
                             </div>
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl flex flex-col items-center justify-center text-center">
-                                <Activity size={20} className="text-emerald-500 mb-2" />
-                                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
+                                    <Activity size={14} className="text-emerald-500" />
                                     {(data.electionData!.activity * 100).toFixed(1)}%
-                                </span>
-                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
                                     Активност
-                                </span>
+                                </div>
                             </div>
                         </div>
 

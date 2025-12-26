@@ -36,6 +36,34 @@ function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void })
   return null;
 }
 
+// Component to navigate to selected region
+function RegionNavigator({ region }: { region: SelectedRegion | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (region) {
+      // Create a GeoJSON layer from the feature to get its bounds
+      const geoJsonLayer = L.geoJSON(region as any);
+      const bounds = geoJsonLayer.getBounds();
+      
+      if (bounds.isValid()) {
+        // Determine appropriate zoom based on region type
+        const isSettlement = 'ekatte' in region.properties;
+        const maxZoom = isSettlement ? 13 : 10;
+        
+        map.fitBounds(bounds, { 
+          padding: [100, 100], // Extra padding to keep polygon visible above bottom sheet
+          maxZoom: maxZoom,
+          animate: true,
+          duration: 0.5
+        });
+      }
+    }
+  }, [region, map]);
+
+  return null;
+}
+
 export default function Map({ municipalities, places, selectedRegion, onRegionSelect }: MapProps) {
   const [zoom, setZoom] = useState(7);
 
@@ -143,6 +171,7 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
             zoomControl={false}
         >
             <ZoomHandler onZoomChange={setZoom} />
+            <RegionNavigator region={selectedRegion} />
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
