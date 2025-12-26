@@ -46,17 +46,18 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
       },
       mouseover: (e) => {
         const l = e.target as L.Path;
-        l.setStyle({ fillOpacity: 0.5 });
+        l.setStyle({ fillOpacity: 0.15, color: '#7f1d1d', weight: 2 });
       },
       mouseout: (e) => {
         const l = e.target as L.Path;
         if (!isSelected(feature)) {
-             l.setStyle({ fillOpacity: 0.2, weight: 1, color: '#6b7280' });
+             l.setStyle({ fillOpacity: 0, weight: zoom > 9 ? 2 : 1, color: '#6b7280' });
         } else {
              l.setStyle({
-                weight: 3,
+                weight: (zoom > 9 ? 2 : 1) + 2,
                 color: '#3b82f6',
-                fillOpacity: 0.6
+                fillOpacity: 0.3,
+                fillColor: '#3b82f6'
              });
         }
       }
@@ -111,12 +112,14 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
   /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   const geoJsonStyle = (feature: any) => {
     const selected = isSelected(feature);
+    // Thicker borders when settlements are visible (zoom > 9) for better distinction
+    const baseWeight = zoom > 9 ? 2 : 1;
     return {
-      fillColor: '#374151', // gray-700
-      weight: selected ? 3 : 1,
+      fillColor: selected ? '#3b82f6' : '#6b7280', // blue-500 when selected, gray-500 otherwise
+      weight: selected ? baseWeight + 2 : baseWeight, // Much thicker when selected
       opacity: 1,
-      color: selected ? '#3b82f6' : '#6b7280', // blue-500 or gray-500
-      fillOpacity: selected ? 0.6 : 0.2
+      color: selected ? '#3b82f6' : '#6b7280', // bright blue when selected, gray otherwise
+      fillOpacity: selected ? 0.3 : 0 // more visible fill when selected
     };
   };
 
@@ -147,7 +150,7 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
                     {municipalities.length > 0 && (
                 <>
                     <GeoJSON 
-                        key="municipalities-layer"
+                        key={`municipalities-layer-${selectedRegion && !('ekatte' in selectedRegion.properties) ? selectedRegion.properties.name : 'none'}`}
                         data={municipalities as any} 
                         style={geoJsonStyle} 
                         onEachFeature={(feature, layer) => onEachFeature(feature as MunicipalityData, layer)}
@@ -157,7 +160,7 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
             )}
             {(zoom > 9 || (selectedRegion && !('electionData' in selectedRegion))) && places && (
                 <GeoJSON 
-                    key="places-layer"
+                    key={`places-layer-${selectedRegion && 'ekatte' in selectedRegion.properties ? selectedRegion.properties.ekatte : 'none'}`}
                     data={places as any}
                     style={placesStyle}
                     onEachFeature={(feature, layer) => onEachPlaceFeature(feature as Place, layer)}
