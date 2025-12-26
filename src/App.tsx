@@ -15,6 +15,7 @@ import {
 
 function App() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
+  const [shouldNavigate, setShouldNavigate] = useState(false);
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,12 +58,21 @@ function App() {
     loadData();
   }, []);
 
+  // Handle selection from map click - no navigation
   const handleRegionSelect = (data: SelectedRegion) => {
     setSelectedRegion(data);
+    setShouldNavigate(false);
+  };
+
+  // Handle selection from search - with navigation
+  const handleSearchSelect = (data: SelectedRegion) => {
+    setSelectedRegion(data);
+    setShouldNavigate(true);
   };
 
   const handleCloseSheet = () => {
     setSelectedRegion(null);
+    setShouldNavigate(false);
   };
 
   const handleSearch = (query: string) => {
@@ -79,12 +89,13 @@ function App() {
 
   return (
     <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative">
-      <SearchBar onSearch={handleSearch} onSelect={handleRegionSelect} />
+      <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
       
       <Map 
         municipalities={municipalities}
         places={places}
         selectedRegion={selectedRegion}
+        shouldNavigate={shouldNavigate}
         onRegionSelect={handleRegionSelect} 
       />
       

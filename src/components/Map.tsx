@@ -8,6 +8,7 @@ interface MapProps {
   municipalities: MunicipalityData[];
   places: Place[];
   selectedRegion: SelectedRegion | null;
+  shouldNavigate: boolean;
   onRegionSelect: (data: SelectedRegion) => void;
 }
 
@@ -37,11 +38,11 @@ function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void })
 }
 
 // Component to navigate to selected region
-function RegionNavigator({ region }: { region: SelectedRegion | null }) {
+function RegionNavigator({ region, shouldNavigate }: { region: SelectedRegion | null; shouldNavigate: boolean }) {
   const map = useMap();
 
   useEffect(() => {
-    if (region) {
+    if (region && shouldNavigate) {
       // Create a GeoJSON layer from the feature to get its bounds
       const geoJsonLayer = L.geoJSON(region as any);
       const bounds = geoJsonLayer.getBounds();
@@ -51,20 +52,35 @@ function RegionNavigator({ region }: { region: SelectedRegion | null }) {
         const isSettlement = 'ekatte' in region.properties;
         const maxZoom = isSettlement ? 13 : 10;
         
-        map.fitBounds(bounds, { 
-          padding: [100, 100], // Extra padding to keep polygon visible above bottom sheet
-          maxZoom: maxZoom,
+        // Get the center of the bounds
+        const center = bounds.getCenter();
+        
+        // Offset the center upwards to account for bottom sheet
+        // Convert lat offset: move center up by offsetting latitude
+        const mapContainer = map.getContainer();
+        const containerHeight = mapContainer.clientHeight;
+        const offsetPixels = containerHeight * 0.15; // Offset by 15% of viewport height upwards
+        
+        // First fit to bounds to get appropriate zoom
+        map.fitBounds(bounds, { maxZoom: maxZoom, animate: false });
+        
+        // Then pan to offset center
+        const point = map.latLngToContainerPoint(center);
+        point.y -= offsetPixels; // Move up
+        const offsetCenter = map.containerPointToLatLng(point);
+        
+        map.setView(offsetCenter, map.getZoom(), {
           animate: true,
           duration: 0.5
         });
       }
     }
-  }, [region, map]);
+  }, [region, shouldNavigate, map]);
 
   return null;
 }
 
-export default function Map({ municipalities, places, selectedRegion, onRegionSelect }: MapProps) {
+export default function Map({ municipalities, places, selectedRegion, shouldNavigate, onRegionSelect }: MapProps) {
   const [zoom, setZoom] = useState(7);
 
   const onEachFeature = (feature: MunicipalityData, layer: L.Layer) => {
@@ -171,7 +187,7 @@ export default function Map({ municipalities, places, selectedRegion, onRegionSe
             zoomControl={false}
         >
             <ZoomHandler onZoomChange={setZoom} />
-            <RegionNavigator region={selectedRegion} />
+            <RegionNavigator region={selectedRegion} shouldNavigate={shouldNavigate} />
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

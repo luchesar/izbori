@@ -35,14 +35,16 @@ export default function BottomSheet({ data, onClose }: BottomSheetProps) {
     <AnimatePresence>
       {data && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black z-10"
-          />
+          {/* Backdrop - only visible when expanded */}
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.3 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsExpanded(false)}
+              className="fixed inset-0 bg-black z-10"
+            />
+          )}
           
           {/* Sheet */}
           <motion.div
