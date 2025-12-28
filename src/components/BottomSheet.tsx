@@ -12,6 +12,7 @@ interface BottomSheetProps {
   selectedElections: string[];
   comparativeData: Record<string, SelectedRegion | null>;
   onClose: () => void;
+  onScroll?: () => void;
 }
 
 
@@ -105,7 +106,7 @@ const hasElectionData = (d: SelectedRegion): d is MunicipalityData => {
   return 'electionData' in d && !!d.electionData;
 };
 
-export default function BottomSheet({ data, selectedElections, comparativeData, onClose }: BottomSheetProps) {
+export default function BottomSheet({ data, selectedElections, comparativeData, onClose, onScroll }: BottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   /* Removed local hasElectionData definition as it's now outside */
@@ -197,7 +198,10 @@ export default function BottomSheet({ data, selectedElections, comparativeData, 
             </div>
 
             {/* Content */}
-            <div className={clsx("flex-1 overflow-y-auto p-4", selectedElections.length > 1 && "overflow-x-auto p-0 flex flex-row divide-x divide-gray-100 dark:divide-zinc-800")}>
+            <div 
+                className={clsx("flex-1 overflow-y-auto p-4", selectedElections.length > 1 && "overflow-x-auto p-0 flex flex-row divide-x divide-gray-100 dark:divide-zinc-800")}
+                onScroll={onScroll}
+            >
                 {selectedElections.length === 1 ? (
                     // Single view
                     <ElectionResultView 
@@ -208,7 +212,7 @@ export default function BottomSheet({ data, selectedElections, comparativeData, 
                     // Comparative view
                     <div className="flex h-full">
                         {selectedElections.map(electionId => (
-                            <div key={electionId} className="h-full overflow-y-auto p-4">
+                            <div key={electionId} className="h-full overflow-y-auto p-4" onScroll={onScroll}>
                                 <ElectionResultView 
                                     data={comparativeData[electionId]} 
                                     electionId={electionId} 

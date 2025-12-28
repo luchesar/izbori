@@ -17,6 +17,7 @@ import {
 function App() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [selectedElections, setSelectedElections] = useState<string[]>(['2024-10-27-ns']);
   const [electionsData, setElectionsData] = useState<Record<string, { municipalities: MunicipalityData[], places: Place[] }>>({});
   
@@ -141,6 +142,9 @@ function App() {
       <ElectionSelector 
         selectedElections={selectedElections}
         onElectionChange={setSelectedElections}
+        isOpen={selectorOpen}
+        onToggle={() => setSelectorOpen(!selectorOpen)}
+        onClose={() => setSelectorOpen(false)}
       />
       
       <Map 
@@ -156,6 +160,7 @@ function App() {
         selectedElections={selectedElections}
         comparativeData={comparativeData}
         onClose={handleCloseSheet} 
+        onScroll={() => setSelectorOpen(false)}
       />
     </div>
   );

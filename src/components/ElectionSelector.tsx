@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AVAILABLE_ELECTIONS, formatElectionDate } from '../utils/elections';
@@ -6,12 +6,30 @@ import { AVAILABLE_ELECTIONS, formatElectionDate } from '../utils/elections';
 interface ElectionSelectorProps {
   selectedElections: string[];
   onElectionChange: (electionIds: string[]) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
 }
 
+export default function ElectionSelector({ selectedElections, onElectionChange, isOpen, onToggle, onClose }: ElectionSelectorProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Close when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
 
-export default function ElectionSelector({ selectedElections, onElectionChange }: ElectionSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   // Helper to toggle selection
   const handleToggle = (electionId: string) => {
@@ -30,10 +48,10 @@ export default function ElectionSelector({ selectedElections, onElectionChange }
     : `${selectedElections.length} избора`;
 
   return (
-    <div className="absolute top-20 left-4 z-[9998]">
+    <div className="absolute top-20 left-4 z-[9998]" ref={containerRef}>
       <div className="relative">
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={onToggle}
           className="flex items-center gap-1.5 px-2 py-1 bg-white/70 dark:bg-zinc-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-zinc-700/50 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-white/90 dark:hover:bg-zinc-800/90 transition-colors"
         >
           <Calendar size={12} className="text-gray-500 dark:text-gray-400" />
