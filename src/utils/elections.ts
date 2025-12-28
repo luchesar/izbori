@@ -7,18 +7,57 @@ const EL_DATA_PATH = `${DATA_BASE_URL}/el_data`;
 const GEO_DATA_PATH = `${DATA_BASE_URL}/geo`;
 
 // Define available dates and types likely available based on file scan
+// Bulgarian month names
+export const BULGARIAN_MONTHS: Record<string, string> = {
+  '01': 'Януари',
+  '02': 'Февруари',
+  '03': 'Март',
+  '04': 'Април',
+  '05': 'Май',
+  '06': 'Юни',
+  '07': 'Юли',
+  '08': 'Август',
+  '09': 'Септември',
+  '10': 'Октомври',
+  '11': 'Ноември',
+  '12': 'Декември'
+};
+
+export function formatElectionDate(id: string): string {
+  let date = id;
+  let type = 'ns';
+  const match = id.match(/^(\d{4}-\d{2}-\d{2})-(ns|ep)$/);
+  if (match) {
+      date = match[1];
+      type = match[2];
+  }
+  
+  const [year, month, day] = date.split('-');
+  const monthName = BULGARIAN_MONTHS[month] || month;
+  const suffix = type === 'ep' ? ' (ЕП)' : type === 'ns' && date === '2024-06-09' ? ' (НС)' : '';
+  
+  return `${day} ${monthName} ${year}${suffix}`;
+}
+
+export function formatElectionMonthYear(id: string): string {
+  const [year, month] = id.split('-'); // Works for YYYY-MM-DD-type too as year is first
+  const monthName = BULGARIAN_MONTHS[month] || month;
+  return `${monthName} ${year}`;
+}
+
+// Define available dates and types likely available based on file scan
 export const AVAILABLE_ELECTIONS = [
-  { date: '2013-05-12', type: 'ns' },
-  { date: '2014-10-05', type: 'ns' },
-  { date: '2017-03-26', type: 'ns' },
-  { date: '2021-04-04', type: 'ns' },
-  { date: '2021-07-11', type: 'ns' },
-  { date: '2021-11-14', type: 'ns' },
-  { date: '2022-10-02', type: 'ns' },
-  { date: '2023-04-02', type: 'ns' },
-  { date: '2024-06-09', type: 'ns' },
-  { date: '2024-06-09', type: 'ep' },
-  { date: '2024-10-27', type: 'ns' },
+  { id: '2013-05-12-ns', date: '2013-05-12', type: 'ns' },
+  { id: '2014-10-05-ns', date: '2014-10-05', type: 'ns' },
+  { id: '2017-03-26-ns', date: '2017-03-26', type: 'ns' },
+  { id: '2021-04-04-ns', date: '2021-04-04', type: 'ns' },
+  { id: '2021-07-11-ns', date: '2021-07-11', type: 'ns' },
+  { id: '2021-11-14-ns', date: '2021-11-14', type: 'ns' },
+  { id: '2022-10-02-ns', date: '2022-10-02', type: 'ns' },
+  { id: '2023-04-02-ns', date: '2023-04-02', type: 'ns' },
+  { id: '2024-06-09-ns', date: '2024-06-09', type: 'ns' },
+  { id: '2024-06-09-ep', date: '2024-06-09', type: 'ep' },
+  { id: '2024-10-27-ns', date: '2024-10-27', type: 'ns' },
 ];
 
 export interface ElectionFilter {
@@ -123,9 +162,18 @@ export async function loadPlacesData(): Promise<any[]> {
 export async function getElectionData(request: RegionDataRequest): Promise<Record<string, any>> {
   const { electionId, regionType, parties, regionId } = request;
   
+  // Extract date and type from ID (e.g., '2024-06-09-ns' -> date='2024-06-09', type='ns')
+  let date = electionId;
+  let type = 'ns';
+  const match = electionId.match(/^(\d{4}-\d{2}-\d{2})-(ns|ep)$/);
+  if (match) {
+      date = match[1];
+      type = match[2];
+  }
+  
   // Construct filename
-  const suffix = regionType === 'municipality' ? 'ns_mun.csv' : 'ns.csv';
-  const url = `${EL_DATA_PATH}/${electionId}${suffix}`;
+  const suffix = regionType === 'municipality' ? `${type}_mun.csv` : `${type}.csv`;
+  const url = `${EL_DATA_PATH}/${date}${suffix}`;
   
   // Cache key includes URL but NOT filter params (we filter in memory to reuse the CSV parse)
   const cacheKey = `election-data-${url}`;

@@ -5,41 +5,110 @@ import type { SelectedRegion, MunicipalityData } from '../types';
 import clsx from 'clsx';
 import { useState } from 'react';
 
+import { formatElectionDate, formatElectionMonthYear } from '../utils/elections';
+
 interface BottomSheetProps {
   data: SelectedRegion | null;
-  electionDate: string;
+  selectedElections: string[];
+  comparativeData: Record<string, SelectedRegion | null>;
   onClose: () => void;
 }
 
-// Bulgarian month names
-const BULGARIAN_MONTHS: Record<string, string> = {
-  '01': 'Януари',
-  '02': 'Февруари',
-  '03': 'Март',
-  '04': 'Април',
-  '05': 'Май',
-  '06': 'Юни',
-  '07': 'Юли',
-  '08': 'Август',
-  '09': 'Септември',
-  '10': 'Октомври',
-  '11': 'Ноември',
-  '12': 'Декември'
-};
 
-function formatElectionDate(electionId: string): string {
-  const [year, month, day] = electionId.split('-');
-  const monthName = BULGARIAN_MONTHS[month] || month;
-  return `${day} ${monthName} ${year}`;
+
+
+
+// Component for a single election result (either full or compact)
+function ElectionResultView({ data, electionId, compact = false }: { data: SelectedRegion | null, electionId: string, compact?: boolean }) {
+  if (!data || !hasElectionData(data)) {
+     return (
+        <div className={clsx("flex flex-col items-center justify-center text-gray-500 py-8", compact && "min-w-[280px] h-full border-r border-gray-100 dark:border-zinc-800")}>
+            {compact && <div className="font-bold text-sm mb-4">{formatElectionMonthYear(electionId)}</div>}
+            <div className="text-sm text-center">Няма данни</div>
+        </div>
+     );
+  }
+
+  return (
+    <div className={clsx("space-y-4", compact && "min-w-[280px] max-w-[320px] p-2 border-r border-gray-100 dark:border-zinc-800 last:border-0")}>
+        {compact && (
+            <div className="font-bold text-center text-gray-900 dark:text-white border-b border-gray-100 dark:border-zinc-800 pb-2">
+                {formatElectionMonthYear(electionId)}
+            </div>
+        )}
+
+        {/* Stats */}
+        <div className="flex gap-4 text-center">
+            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
+                    <Users size={14} className="text-blue-500" />
+                    {data.electionData?.totalVotes.toLocaleString()}
+                </div>
+                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
+                    Общо гласове
+                </div>
+            </div>
+            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
+                    <Activity size={14} className="text-emerald-500" />
+                    {(data.electionData!.activity * 100).toFixed(1)}%
+                </div>
+                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
+                    Активност
+                </div>
+            </div>
+        </div>
+
+        {/* Parties Table */}
+        <div>
+            {!compact && (
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                    Резултати
+                </h3>
+            )}
+            <div className="space-y-3">
+                {data.electionData?.topParties.map((result, idx) => (
+                    <div key={result.party} className="group">
+                        <div className="flex justify-between items-center text-sm mb-1">
+                            <span className="font-medium text-gray-700 dark:text-gray-200 truncate pr-2" title={result.party}>
+                                {result.party}
+                            </span>
+                            <span className="font-mono text-gray-900 dark:text-white shrink-0">
+                                {result.percentage.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div className="h-2 w-full bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div 
+                                className={clsx(
+                                    "h-full rounded-full transition-all duration-500 ease-out",
+                                    idx === 0 ? "bg-blue-500" :
+                                    idx === 1 ? "bg-indigo-500" :
+                                    idx === 2 ? "bg-violet-500" :
+                                    "bg-gray-400"
+                                )}
+                                style={{ width: `${result.percentage}%` }}
+                            />
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                {result.votes.toLocaleString()} гласа
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+  );
 }
 
-export default function BottomSheet({ data, electionDate, onClose }: BottomSheetProps) {
+// Helper to check if data has election results
+const hasElectionData = (d: SelectedRegion): d is MunicipalityData => {
+  return 'electionData' in d && !!d.electionData;
+};
+
+export default function BottomSheet({ data, selectedElections, comparativeData, onClose }: BottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Helper to check if data has election results
-  const hasElectionData = (d: SelectedRegion): d is MunicipalityData => {
-    return 'electionData' in d && !!d.electionData;
-  };
+  /* Removed local hasElectionData definition as it's now outside */
 
   const handleDragEnd = (_: any, info: PanInfo) => {
     if (info.offset.y > 100) {
@@ -79,7 +148,10 @@ export default function BottomSheet({ data, electionDate, onClose }: BottomSheet
             dragElastic={0.2}
             onDragEnd={handleDragEnd}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 h-[90vh] flex flex-col md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe"
+            className={clsx(
+                "fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 flex flex-col transition-all duration-300",
+                selectedElections.length > 1 ? "md:max-w-4xl md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe h-[80vh]" : "h-[90vh] md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe"
+            )}
           >
             {/* Handle bar - tap to expand/collapse */}
             <div 
@@ -107,7 +179,11 @@ export default function BottomSheet({ data, electionDate, onClose }: BottomSheet
                            <span>NUTS4: {data.properties.nuts4}</span>
                       )}
                       <span>•</span>
-                      <span>{formatElectionDate(electionDate)}</span>
+                      {selectedElections.length === 1 ? (
+                          <span>{formatElectionDate(selectedElections[0])}</span>
+                      ) : (
+                          <span>Сравнение на {selectedElections.length} избора</span>
+                      )}
                   </div>
                 </div>
                 <button 
@@ -121,70 +197,25 @@ export default function BottomSheet({ data, electionDate, onClose }: BottomSheet
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {hasElectionData(data) ? (
-                    <>
-                        {/* Stats */}
-                        <div className="flex gap-4 text-center">
-                            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
-                                    <Users size={14} className="text-blue-500" />
-                                    {data.electionData?.totalVotes.toLocaleString()}
-                                </div>
-                                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
-                                    Общо гласове
-                                </div>
-                            </div>
-                            <div className="flex-1 bg-gray-50 dark:bg-zinc-800/50 p-2 rounded-lg">
-                                <div className="flex items-center justify-center gap-1 text-base font-bold text-gray-900 dark:text-white">
-                                    <Activity size={14} className="text-emerald-500" />
-                                    {(data.electionData!.activity * 100).toFixed(1)}%
-                                </div>
-                                <div className="text-[9px] text-gray-500 font-medium uppercase tracking-wide">
-                                    Активност
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Parties Table */}
-                        <div>
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                                Резултати
-                            </h3>
-                            <div className="space-y-3">
-                                {data.electionData?.topParties.map((result, idx) => (
-                                    <div key={result.party} className="group">
-                                        <div className="flex justify-between items-center text-sm mb-1">
-                                            <span className="font-medium text-gray-700 dark:text-gray-200 truncate pr-2" title={result.party}>
-                                                {result.party}
-                                            </span>
-                                            <span className="font-mono text-gray-900 dark:text-white shrink-0">
-                                                {result.percentage.toFixed(2)}%
-                                            </span>
-                                        </div>
-                                        <div className="h-2 w-full bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                                            <div 
-                                                className={clsx(
-                                                    "h-full rounded-full transition-all duration-500 ease-out",
-                                                    idx === 0 ? "bg-blue-500" :
-                                                    idx === 1 ? "bg-indigo-500" :
-                                                    idx === 2 ? "bg-violet-500" :
-                                                    "bg-gray-400"
-                                                )}
-                                                style={{ width: `${result.percentage}%` }}
-                                            />
-                                        </div>
-                                        <div className="text-xs text-gray-400 mt-0.5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                             {result.votes.toLocaleString()} гласа
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
+            <div className={clsx("flex-1 overflow-y-auto p-4", selectedElections.length > 1 && "overflow-x-auto p-0 flex flex-row divide-x divide-gray-100 dark:divide-zinc-800")}>
+                {selectedElections.length === 1 ? (
+                    // Single view
+                    <ElectionResultView 
+                        data={comparativeData[selectedElections[0]] || data} 
+                        electionId={selectedElections[0]} 
+                    />
                 ) : (
-                    <div className="text-center text-gray-500 py-8">
-                        Няма изборни данни за това населено място
+                    // Comparative view
+                    <div className="flex h-full">
+                        {selectedElections.map(electionId => (
+                            <div key={electionId} className="h-full overflow-y-auto p-4">
+                                <ElectionResultView 
+                                    data={comparativeData[electionId]} 
+                                    electionId={electionId} 
+                                    compact={true} 
+                                />
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

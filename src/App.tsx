@@ -17,7 +17,10 @@ import {
 function App() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
-  const [selectedElection, setSelectedElection] = useState('2024-10-27');
+  const [selectedElections, setSelectedElections] = useState<string[]>(['2024-10-27-ns']);
+  const [electionsData, setElectionsData] = useState<Record<string, { municipalities: MunicipalityData[], places: Place[] }>>({});
+  
+  // Primary data for the map (from the first selected election)
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,54 +28,61 @@ function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Load geographic data and settlement election data
-        const [geo, placesGeoJSON, settlementResults] = await Promise.all([
-          loadMunicipalitiesGeoJSON(),
-          loadSettlementsGeoJSON(),
-          getElectionData({ electionId: selectedElection, regionType: 'settlement' })
-        ]);
+        setLoading(true);
+        const geo = await loadMunicipalitiesGeoJSON();
+        const placesGeoJSON = await loadSettlementsGeoJSON();
         
-        // For 2024-10-27, there's no municipality CSV file, so aggregate from settlements
-        // Need to extract place data for aggregation from GeoJSON features
-        const placesDataForAgg = placesGeoJSON.features.map((f: any) => ({
-          ekatte: f.properties.ekatte,
-          name: f.properties.name,
-          oblast: f.properties.oblast,
-          obshtina: f.properties.obshtina
+        // Load data for all selected elections
+        const newDataMap: Record<string, { municipalities: MunicipalityData[], places: Place[] }> = {};
+        
+        await Promise.all(selectedElections.map(async (electionId) => {
+          const settlementResults = await getElectionData({ electionId, regionType: 'settlement' });
+          
+          // Aggregate for municipalities
+          const placesDataForAgg = placesGeoJSON.features.map((f: any) => ({
+            ekatte: f.properties.ekatte,
+            name: f.properties.name,
+            oblast: f.properties.oblast,
+            obshtina: f.properties.obshtina
+          }));
+          
+          const electionMunicipalities = aggregateSettlementsToMunicipalities(
+            placesDataForAgg, 
+            settlementResults, 
+            geo
+          );
+          
+          const electionPlaces = mergePlacesData(placesGeoJSON, settlementResults);
+          
+          newDataMap[electionId] = {
+            municipalities: electionMunicipalities,
+            places: electionPlaces
+          };
         }));
         
-        const mergedMunicipalities = aggregateSettlementsToMunicipalities(
-          placesDataForAgg, 
-          settlementResults, 
-          geo
-        );
-        setMunicipalities(mergedMunicipalities);
+        setElectionsData(newDataMap);
         
-        // Merge settlement data with polygons
-        const mergedPlaces = mergePlacesData(placesGeoJSON, settlementResults);
-        setPlaces(mergedPlaces);
-        
-        // If there's a selected region, update it with new election data
-        if (selectedRegion) {
-          const isSettlement = 'ekatte' in selectedRegion.properties;
-          if (isSettlement) {
-            // Find the same settlement in new data
-            const updatedPlace = mergedPlaces.find(
-              p => p.properties.ekatte === selectedRegion.properties.ekatte
-            );
-            if (updatedPlace) {
-              setSelectedRegion(updatedPlace);
-            }
-          } else {
-            // Find the same municipality in new data
-            const updatedMunicipality = mergedMunicipalities.find(
-              m => m.properties.name === selectedRegion.properties.name
-            );
-            if (updatedMunicipality) {
-              setSelectedRegion(updatedMunicipality);
-            }
+        // Use data from the first selected election for the map
+        const primaryElectionId = selectedElections[0];
+        if (newDataMap[primaryElectionId]) {
+          setMunicipalities(newDataMap[primaryElectionId].municipalities);
+          setPlaces(newDataMap[primaryElectionId].places);
+          
+          // Update selected region if exists
+          if (selectedRegion) {
+             const isSettlement = 'ekatte' in selectedRegion.properties;
+             const primaryData = newDataMap[primaryElectionId];
+             
+             if (isSettlement) {
+                const updated = primaryData.places.find(p => p.properties.ekatte === selectedRegion.properties.ekatte);
+                if (updated) setSelectedRegion(updated);
+             } else {
+                const updated = primaryData.municipalities.find(m => m.properties.name === selectedRegion.properties.name);
+                if (updated) setSelectedRegion(updated);
+             }
           }
         }
+        
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
@@ -80,7 +90,7 @@ function App() {
       }
     }
     loadData();
-  }, [selectedElection]); // Reload when election changes
+  }, [selectedElections]); // Reload when selected elections change
 
   // Handle selection from map click - no navigation
   const handleRegionSelect = (data: SelectedRegion) => {
@@ -103,7 +113,21 @@ function App() {
     return searchRegions(query, municipalities, places);
   };
 
-  if (loading) {
+  // Calculate comparative data for the selected region across all selected elections
+  const comparativeData = selectedRegion ? selectedElections.reduce((acc, electionId) => {
+    const data = electionsData[electionId];
+    if (data) {
+      const isSettlement = 'ekatte' in selectedRegion.properties;
+      if (isSettlement) {
+        acc[electionId] = data.places.find(p => p.properties.ekatte === selectedRegion.properties.ekatte) || null;
+      } else {
+        acc[electionId] = data.municipalities.find(m => m.properties.name === selectedRegion.properties.name) || null;
+      }
+    }
+    return acc;
+  }, {} as Record<string, SelectedRegion | null>) : {};
+
+  if (loading && selectedElections.length === 0) { // Only show full loading if we have nothing
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-black text-gray-500">
         Зареждане на данни...
@@ -115,8 +139,8 @@ function App() {
     <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative">
       <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
       <ElectionSelector 
-        selectedElection={selectedElection}
-        onElectionChange={setSelectedElection}
+        selectedElections={selectedElections}
+        onElectionChange={setSelectedElections}
       />
       
       <Map 
@@ -129,7 +153,8 @@ function App() {
       
       <BottomSheet 
         data={selectedRegion} 
-        electionDate={selectedElection}
+        selectedElections={selectedElections}
+        comparativeData={comparativeData}
         onClose={handleCloseSheet} 
       />
     </div>
