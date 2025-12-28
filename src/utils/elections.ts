@@ -40,9 +40,19 @@ export function formatElectionDate(id: string): string {
 }
 
 export function formatElectionMonthYear(id: string): string {
-  const [year, month] = id.split('-'); // Works for YYYY-MM-DD-type too as year is first
+  let date = id;
+  let type = 'ns';
+  const match = id.match(/^(\d{4}-\d{2}-\d{2})-(ns|ep)$/);
+  if (match) {
+      date = match[1];
+      type = match[2];
+  }
+  
+  const [year, month] = date.split('-'); 
   const monthName = BULGARIAN_MONTHS[month] || month;
-  return `${monthName} ${year}`;
+  const suffix = type === 'ep' ? ' (ЕП)' : type === 'ns' && date === '2024-06-09' ? ' (НС)' : '';
+  
+  return `${monthName} ${year}${suffix}`;
 }
 
 // Define available dates and types likely available based on file scan
