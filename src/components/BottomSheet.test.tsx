@@ -6,7 +6,7 @@ import type { Place, MunicipalityData, ElectionResult } from '../types';
 describe('BottomSheet', () => {
     describe('Basic functionality', () => {
         it('does not render when data is null', () => {
-            render(<BottomSheet data={null} onClose={() => {}} />);
+            render(<BottomSheet data={null} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
             expect(screen.queryByText('Total Votes')).not.toBeInTheDocument();
         });
 
@@ -18,7 +18,7 @@ describe('BottomSheet', () => {
             };
             const onClose = vi.fn();
 
-            render(<BottomSheet data={mockData as any} onClose={onClose} />);
+            render(<BottomSheet data={mockData as any} onClose={onClose} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             expect(screen.getByText('Test Region')).toBeInTheDocument();
             
@@ -53,7 +53,7 @@ describe('BottomSheet', () => {
                 }
             };
 
-            render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+            render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             // Check that the settlement name is displayed
             expect(screen.getByText('гр. Старосел')).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('BottomSheet', () => {
                 }
             };
 
-            render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+            render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             // Check activity/turnout percentage (activity * 100)
             expect(screen.getByText(/48\.8%/)).toBeInTheDocument();
@@ -118,13 +118,13 @@ describe('BottomSheet', () => {
                 // No electionData field
             };
 
-            render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+            render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             // Check that the settlement name is displayed
             expect(screen.getByText('с. Тестово')).toBeInTheDocument();
 
             // Check that the Bulgarian "no data" message is displayed
-            expect(screen.getByText('Няма изборни данни за това населено място')).toBeInTheDocument();
+            expect(screen.getByText('Няма данни')).toBeInTheDocument();
         });
 
         it('should display Bulgarian message for settlement with undefined electionData', () => {
@@ -143,10 +143,10 @@ describe('BottomSheet', () => {
                 electionData: undefined
             };
 
-            render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+            render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             expect(screen.getByText('с. Друго село')).toBeInTheDocument();
-            expect(screen.getByText('Няма изборни данни за това населено място')).toBeInTheDocument();
+            expect(screen.getByText('Няма данни')).toBeInTheDocument();
         });
     });
 
@@ -173,7 +173,7 @@ describe('BottomSheet', () => {
                 }
             };
 
-            render(<BottomSheet data={mockMunicipality} onClose={() => {}} />);
+            render(<BottomSheet data={mockMunicipality} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             expect(screen.getByText('Пловдив')).toBeInTheDocument();
             expect(screen.getByText('ГЕРБ-СДС')).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe('BottomSheet', () => {
                     }
                 };
 
-                const { unmount } = render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+                const { unmount } = render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
                 expect(screen.getByText(name)).toBeInTheDocument();
                 unmount();
             });
@@ -228,7 +228,7 @@ describe('BottomSheet', () => {
                 }
             };
 
-            render(<BottomSheet data={mockPlace} onClose={() => {}} />);
+            render(<BottomSheet data={mockPlace} onClose={() => {}} selectedElections={['2024-10-27-ns']} comparativeData={{}} />);
 
             // These should be displayed somewhere in the component
             expect(screen.getByText(/Пловдив/)).toBeInTheDocument();

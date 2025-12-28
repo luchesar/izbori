@@ -20,7 +20,7 @@ describe('App', () => {
     it('renders loading state initially', () => {
         (loadMunicipalitiesGeoJSON as any).mockImplementation(() => new Promise(() => {})); // Hang forever
         render(<App />);
-        expect(screen.getByText(/Loading Data/i)).toBeInTheDocument();
+        expect(screen.getByText(/Зареждане на данни/i)).toBeInTheDocument();
     });
 
     it('renders map and search bar after data loads', async () => {
@@ -31,7 +31,7 @@ describe('App', () => {
         render(<App />);
 
         await waitFor(() => {
-            expect(screen.queryByText(/Loading Data/i)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Зареждане на данни/i)).not.toBeInTheDocument();
         });
 
         // Search bar should be present (placeholder text)

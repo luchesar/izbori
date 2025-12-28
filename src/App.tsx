@@ -128,7 +128,7 @@ function App() {
     return acc;
   }, {} as Record<string, SelectedRegion | null>) : {};
 
-  if (loading && selectedElections.length === 0) { // Only show full loading if we have nothing
+  if (loading && municipalities.length === 0) { // Only show full loading if we have nothing
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-black text-gray-500">
         Зареждане на данни...

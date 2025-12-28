@@ -337,9 +337,21 @@ describe('Elections API', () => {
 
   describe('mergePlacesData', () => {
     const mockPlacesData = [
-      { ekatte: '00014', name: 'с. Абланица', lat: 41.66, lng: 24.51, oblast: 'Смолян', obshtina: 'Чепеларе' },
-      { ekatte: '69016', name: 'с. Старосел', lat: 42.52, lng: 24.52, oblast: 'Пловдив', obshtina: 'Хисаря' },
-      { ekatte: '12345', name: 'с. NoData', lat: 42.0, lng: 25.0, oblast: 'Test', obshtina: 'Test' }
+      { 
+        type: 'Feature',
+        properties: { ekatte: '00014', name: 'с. Абланица', oblast: 'Смолян', obshtina: 'Чепеларе' },
+        geometry: { type: 'Point', coordinates: [24.51, 41.66] }
+      },
+      { 
+        type: 'Feature',
+        properties: { ekatte: '69016', name: 'с. Старосел', oblast: 'Пловдив', obshtina: 'Хисаря' },
+        geometry: { type: 'Point', coordinates: [24.52, 42.52] }
+      },
+      { 
+        type: 'Feature',
+        properties: { ekatte: '12345', name: 'с. NoData', oblast: 'Test', obshtina: 'Test' },
+        geometry: { type: 'Point', coordinates: [25.0, 42.0] }
+      }
     ];
 
     const mockElectionResults = {
@@ -422,158 +434,7 @@ describe('Elections API', () => {
   });
 
   // Integration tests with real files
-  describe('Integration Tests - Real Data Files', () => {
-    beforeEach(() => {
-      // Clear cache and mocks to use real fetch
-      clearCache();
-      vi.clearAllMocks();
-      // Restore real fetch for integration tests
-      global.fetch = fetch;
-    });
+  /* Integration Tests moved to elections_integration.test.ts */
 
-    describe('loadPlacesData - Real File', () => {
-      it('should load real places.json file', async () => {
-        const { loadPlacesData } = await import('./elections');
-        const places = await loadPlacesData();
-
-        expect(places).toBeDefined();
-        expect(Array.isArray(places)).toBe(true);
-        expect(places.length).toBeGreaterThan(5000); // Should have ~5255 places
-        
-        // Verify structure
-        const firstPlace = places[0];
-        expect(firstPlace).toHaveProperty('ekatte');
-        expect(firstPlace).toHaveProperty('name');
-        expect(firstPlace).toHaveProperty('lat');
-        expect(firstPlace).toHaveProperty('lng');
-        expect(firstPlace).toHaveProperty('oblast');
-        expect(firstPlace).toHaveProperty('obshtina');
-        
-        // Verify EKATTE format (5 characters with leading zeros)
-        expect(firstPlace.ekatte).toMatch(/^\d{5}$/);
-      });
-
-      it('should include specific known settlements', async () => {
-        const { loadPlacesData } = await import('./elections');
-        const places = await loadPlacesData();
-
-        // Check for Старосел (EKATTE: 69016)
-        const starosel = places.find(p => p.ekatte === '69016');
-        expect(starosel).toBeDefined();
-        expect(starosel?.name).toContain('Старосел');
-        expect(starosel?.oblast).toBe('Пловдив');
-      });
-    });
-
-    describe('getElectionData - Real Settlement File', () => {
-      it('should load real 2024-10-27ns.csv file', async () => {
-        // Restore Papa.parse to use real implementation
-        vi.unmock('papaparse');
-        const Papa = await import('papaparse');
-        
-        const results = await getElectionData({
-          electionId: '2024-10-27',
-          regionType: 'settlement'
-        });
-
-        expect(results).toBeDefined();
-        expect(Object.keys(results).length).toBeGreaterThan(4000); // Should have ~4184 settlements
-        
-        // Verify EKATTE format conversion
-        const firstKey = Object.keys(results)[0];
-        expect(firstKey).toMatch(/^\d{5}$/); // Should be 5 digits with leading zeros
-      }, 10000); // Increase timeout for file loading
-
-      it('should load data for Старосел (EKATTE: 69016)', async () => {
-        vi.unmock('papaparse');
-        
-        const results = await getElectionData({
-          electionId: '2024-10-27',
-          regionType: 'settlement',
-          regionId: '69016'
-        });
-
-        expect(results).toHaveProperty('69016');
-        expect(results['69016']).toBeDefined();
-        expect(results['69016'].total).toBeGreaterThan(0);
-        expect(results['69016'].results).toBeDefined();
-        
-        // Should have party results
-        const partyNames = Object.keys(results['69016'].results);
-        expect(partyNames.length).toBeGreaterThan(0);
-        expect(partyNames).toContain('ГЕРБ-СДС'); // Common party
-      }, 10000);
-
-      it('should convert CSV ID 14 to EKATTE 00014', async () => {
-        vi.unmock('papaparse');
-        
-        const results = await getElectionData({
-          electionId: '2024-10-27',
-          regionType: 'settlement'
-        });
-
-        // CSV has id=14, should be converted to "00014"
-        expect(results).toHaveProperty('00014');
-        expect(results['00014'].id).toBe('00014');
-      }, 10000);
-    });
-
-    describe('mergePlacesData - Real Files Integration', () => {
-      it('should successfully merge real places.json with real election data', async () => {
-        vi.unmock('papaparse');
-        const { loadPlacesData, mergePlacesData } = await import('./elections');
-
-        // Load real data
-        const [placesData, electionResults] = await Promise.all([
-          loadPlacesData(),
-          getElectionData({ electionId: '2024-10-27', regionType: 'settlement' })
-        ]);
-
-        // Merge
-        const merged = mergePlacesData(placesData, electionResults);
-
-        expect(merged).toBeDefined();
-        expect(merged.length).toBe(placesData.length); // Should preserve all places
-        
-        // Count how many have election data
-        const withData = merged.filter(p => p.electionData !== undefined);
-        const withoutData = merged.filter(p => p.electionData === undefined);
-        
-        expect(withData.length).toBeGreaterThan(4000); // ~79% have data
-        expect(withoutData.length).toBeGreaterThan(0); // ~21% don't have data
-        
-        // Verify data linkage worked
-        const starosel = merged.find(p => p.properties.ekatte === '69016');
-        expect(starosel).toBeDefined();
-        expect(starosel?.electionData).toBeDefined();
-        expect(starosel?.electionData?.totalVotes).toBeGreaterThan(0);
-        expect(starosel?.properties.name).toContain('Старосел');
-        
-        // Verify geometry is Point
-        expect(starosel?.geometry.type).toBe('Point');
-        expect(starosel?.geometry.coordinates).toHaveLength(2);
-      }, 15000);
-
-      it('should preserve places without election data', async () => {
-        vi.unmock('papaparse');
-        const { loadPlacesData, mergePlacesData } = await import('./elections');
-
-        const [placesData, electionResults] = await Promise.all([
-          loadPlacesData(),
-          getElectionData({ electionId: '2024-10-27', regionType: 'settlement' })
-        ]);
-
-        const merged = mergePlacesData(placesData, electionResults);
-        
-        // Find a place without data
-        const placeWithoutData = merged.find(p => !p.electionData);
-        
-        expect(placeWithoutData).toBeDefined();
-        expect(placeWithoutData?.properties.ekatte).toBeDefined();
-        expect(placeWithoutData?.properties.name).toBeDefined();
-        expect(placeWithoutData?.electionData).toBeUndefined();
-      }, 15000);
-    });
-  });
 });
 

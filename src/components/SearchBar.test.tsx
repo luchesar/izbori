@@ -40,7 +40,7 @@ describe('SearchBar', () => {
         fireEvent.focus(input);
 
         expect(screen.getByText('Sofia-Grad')).toBeInTheDocument();
-        expect(screen.getByText('Municipality')).toBeInTheDocument();
+        expect(screen.getByText('Община')).toBeInTheDocument();
     });
 
     it('should call onSelect when a result is clicked', () => {

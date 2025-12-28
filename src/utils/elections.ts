@@ -496,3 +496,40 @@ export function searchRegions(
     })();
 }
 
+/**
+ * Analyzes the last N National Assembly elections and returns the top 5 parties by total aggregated votes.
+ */
+export async function getTopPartiesFromLastNElections(n: number = 3): Promise<string[]> {
+  // Filter for NS elections and sort by date descending
+  const nsElections = AVAILABLE_ELECTIONS
+    .filter(e => e.type === 'ns')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, n);
+
+  const globalPartyVotes: Record<string, number> = {};
+
+  // Fetch and aggregate
+  await Promise.all(nsElections.map(async (election) => {
+      // Use 'settlement' granularity for maximum coverage/reliability across years
+      const data = await getElectionData({ 
+          electionId: election.id, 
+          regionType: 'settlement' 
+      });
+
+      Object.values(data).forEach((row: any) => {
+          if (row.results) {
+              Object.entries(row.results).forEach(([party, votes]) => {
+                  const v = typeof votes === 'number' ? votes : 0;
+                  globalPartyVotes[party] = (globalPartyVotes[party] || 0) + v;
+              });
+          }
+      });
+  }));
+
+  // Sort and pick top 5
+  return Object.entries(globalPartyVotes)
+      .sort(([, votesA], [, votesB]) => votesB - votesA)
+      .slice(0, 5)
+      .map(([party]) => party);
+}
+
