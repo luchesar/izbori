@@ -32,7 +32,7 @@ const mockMunGeo = {
     type: 'FeatureCollection',
     features: [
         { 
-            properties: { name: 'Sofia', nuts4: 'SFO22' }, 
+            properties: { name: 'София', nuts4: 'SFO22' }, 
             geometry: { 
                 type: 'Polygon', 
                 coordinates: [[[23.3, 42.7], [23.4, 42.7], [23.4, 42.6], [23.3, 42.6], [23.3, 42.7]]] 
@@ -44,7 +44,7 @@ const mockMunGeo = {
 const mockPlacesGeo = {
     type: 'FeatureCollection',
     features: [
-        { properties: { name: 'Starosel', ekatte: '00001', obshtina: 'Hisarya' }, geometry: { type: 'Point', coordinates: [0, 0] } }
+        { properties: { name: 'Старосел', ekatte: '00001', obshtina: 'Хисаря' }, geometry: { type: 'Point', coordinates: [0, 0] } }
     ]
 };
 
@@ -62,14 +62,14 @@ describe('App Bookmark Integration', () => {
         (electionsUtils.aggregateSettlementsToMunicipalities as any).mockReturnValue([
              // Mock aggregated municipality
              { 
-                 properties: { name: 'Sofia', nuts4: 'SFO22' },
-                 electionData: { totalVotes: 1000, eligibleVoters: 2000, activity: 0.5 } 
+                 properties: { name: 'София', nuts4: 'SFO22' },
+                 electionData: { totalVotes: 1000, eligibleVoters: 2000, activity: 0.5, topParties: [] } 
              }
         ]);
         (electionsUtils.mergePlacesData as any).mockReturnValue([
              { 
-                 properties: { name: 'Starosel', ekatte: '00001', obshtina: 'Hisarya' },
-                 electionData: { totalVotes: 100, eligibleVoters: 200, activity: 0.5 }
+                 properties: { name: 'Старосел', ekatte: '00001', obshtina: 'Хисаря' },
+                 electionData: { totalVotes: 100, eligibleVoters: 200, activity: 0.5, topParties: [] }
              }
         ]);
         (electionsUtils.getNationalResults as any).mockResolvedValue({
@@ -77,14 +77,14 @@ describe('App Bookmark Integration', () => {
         });
         (electionsUtils.getMunicipalitiesByVoters as any).mockResolvedValue([
              { 
-                 properties: { name: 'Sofia', nuts4: 'SFO22' },
-                 electionData: { totalVotes: 1000, eligibleVoters: 2000, activity: 0.5 } 
+                 properties: { name: 'София', nuts4: 'SFO22' },
+                 electionData: { totalVotes: 1000, eligibleVoters: 2000, activity: 0.5, topParties: [] } 
              }
         ]);
         (electionsUtils.getSettlementsByVotersInMunicipality as any).mockResolvedValue([
              { 
-                 properties: { name: 'Starosel', ekatte: '00001', obshtina: 'Hisarya' },
-                 electionData: { totalVotes: 100, eligibleVoters: 200, activity: 0.5 }
+                 properties: { name: 'Старосел', ekatte: '00001', obshtina: 'Хисаря' },
+                 electionData: { totalVotes: 100, eligibleVoters: 200, activity: 0.5, topParties: [] }
              }
         ]);
         
@@ -123,9 +123,9 @@ describe('App Bookmark Integration', () => {
         
         render(<App />);
         
-        // "Sofia" should appear in Bottom Sheet header eventually
+        // "София" should appear in Bottom Sheet header eventually
         await waitFor(() => {
-            expect(screen.getByText('Sofia')).toBeInTheDocument();
+            expect(screen.getByText('София')).toBeInTheDocument();
         });
     });
 
@@ -135,9 +135,9 @@ describe('App Bookmark Integration', () => {
         
         render(<App />);
         
-        // "Starosel" should appear in Bottom Sheet header
+        // "Старосел" should appear in Bottom Sheet header
         await waitFor(() => {
-            expect(screen.getByText('Starosel')).toBeInTheDocument();
+            expect(screen.getByText('Старосел')).toBeInTheDocument();
         });
     });
 
@@ -148,15 +148,15 @@ describe('App Bookmark Integration', () => {
         await waitFor(() => expect(electionsUtils.loadMunicipalitiesGeoJSON).toHaveBeenCalled());
         
         (electionsUtils.searchRegions as any).mockReturnValue([
-             { properties: { name: 'Sofia', nuts4: 'SFO22' }, label: 'Sofia' }
+             { properties: { name: 'София', nuts4: 'SFO22' }, label: 'София' }
         ]);
 
         // Type in search
         const searchInput = screen.getByPlaceholderText('Търсене на населено място ...');
-        fireEvent.change(searchInput, { target: { value: 'Sof' } });
+        fireEvent.change(searchInput, { target: { value: 'Соф' } });
         
         // Simulate clicking a result
-        const result = await screen.findByText('Sofia');
+        const result = await screen.findByText('София');
         fireEvent.click(result);
         
         await waitFor(() => {
@@ -165,13 +165,13 @@ describe('App Bookmark Integration', () => {
     });
     
     it('should initialize table municipality drill down from URL', async () => {
-        window.history.replaceState({}, '', '/?view=table&table_mun=Sofia');
+        window.history.replaceState({}, '', '/?view=table&table_mun=София');
         render(<App />);
         
-        // TableView header should show "Sofia"
+        // TableView header should show "София"
         await waitFor(() => {
              const header = screen.getByRole('heading', { level: 2 });
-             expect(header).toHaveTextContent('Sofia');
+             expect(header).toHaveTextContent('София');
         });
     });
 

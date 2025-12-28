@@ -10,6 +10,9 @@ interface MapProps {
   selectedRegion: SelectedRegion | null;
   shouldNavigate: boolean;
   onRegionSelect: (data: SelectedRegion) => void;
+  initialZoom?: number;
+  initialCenter?: [number, number];
+  onViewChange?: (zoom: number, center: [number, number]) => void;
 }
 
 // Component to adjust map view bounds based on data
@@ -29,13 +32,31 @@ function MapBounds({ data }: { data: MunicipalityData[] }) {
   return null;
 }
 
-// Component to track zoom level
-function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+// Component to track zoom level and center changes
+function ViewChangeHandler({ onViewChange }: { onViewChange?: (zoom: number, center: [number, number]) => void }) {
   const map = useMapEvents({
     zoomend: () => {
-      onZoomChange(map.getZoom());
+      if (onViewChange) {
+        const center = map.getCenter();
+        onViewChange(map.getZoom(), [center.lat, center.lng]);
+      }
+    },
+    moveend: () => {
+      if (onViewChange) {
+        const center = map.getCenter();
+        onViewChange(map.getZoom(), [center.lat, center.lng]);
+      }
     },
   });
+  
+  // Also track local zoom for styling
+  const [, setLocalZoom] = useState(map.getZoom());
+  useEffect(() => {
+    const handleZoom = () => setLocalZoom(map.getZoom());
+    map.on('zoomend', handleZoom);
+    return () => { map.off('zoomend', handleZoom); };
+  }, [map]);
+  
   return null;
 }
 
@@ -82,8 +103,45 @@ function RegionNavigator({ region, shouldNavigate }: { region: SelectedRegion | 
   return null;
 }
 
-export default function Map({ municipalities, places, selectedRegion, shouldNavigate, onRegionSelect }: MapProps) {
-  const [zoom, setZoom] = useState(7);
+// Component to restore saved map view (from browser history)
+function MapViewRestorer({ targetZoom, targetCenter }: { targetZoom: number, targetCenter: [number, number] }) {
+  const map = useMap();
+  const prevTargetRef = React.useRef<{ zoom: number, center: [number, number] }>({ zoom: targetZoom, center: targetCenter });
+
+  useEffect(() => {
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+    
+    // Check if target has changed from previous render
+    const targetChanged = 
+      prevTargetRef.current.zoom !== targetZoom ||
+      prevTargetRef.current.center[0] !== targetCenter[0] ||
+      prevTargetRef.current.center[1] !== targetCenter[1];
+    
+    // Check if we need to restore (current view differs from target)
+    const needsRestore = 
+      Math.abs(currentZoom - targetZoom) > 0.1 ||
+      Math.abs(currentCenter.lat - targetCenter[0]) > 0.0001 ||
+      Math.abs(currentCenter.lng - targetCenter[1]) > 0.0001;
+    
+    if (targetChanged && needsRestore) {
+      console.log('MapViewRestorer: Flying to', targetZoom, targetCenter);
+      prevTargetRef.current = { zoom: targetZoom, center: targetCenter };
+      map.flyTo(targetCenter, targetZoom, {
+        duration: 2, // 2 seconds animation
+        easeLinearity: 0.25
+      });
+    } else if (targetChanged) {
+      // Update prev even if no restore needed
+      prevTargetRef.current = { zoom: targetZoom, center: targetCenter };
+    }
+  }, [targetZoom, targetCenter, map]);
+
+  return null;
+}
+
+export default function Map({ municipalities, places, selectedRegion, shouldNavigate, onRegionSelect, initialZoom = 7, initialCenter = [42.7339, 25.4858], onViewChange }: MapProps) {
+  const [zoom, setZoom] = useState(initialZoom);
 
   const onEachFeature = (feature: MunicipalityData, layer: L.Layer) => {
     layer.on({
@@ -179,17 +237,26 @@ export default function Map({ municipalities, places, selectedRegion, shouldNavi
       fillOpacity: selected ? 0.2 : 0 // transparent unless selected
     };
   };
+  
+  // Update local zoom when view changes
+  const handleViewChange = (newZoom: number, center: [number, number]) => {
+    setZoom(newZoom);
+    if (onViewChange) {
+      onViewChange(newZoom, center);
+    }
+  };
 
   return (
     <div className="h-full w-full relative z-0">
         <MapContainer 
-            center={[42.7339, 25.4858]} 
-            zoom={7} 
+            center={initialCenter} 
+            zoom={initialZoom} 
             className="h-full w-full bg-white dark:bg-zinc-900"
             zoomControl={false}
         >
-            <ZoomHandler onZoomChange={setZoom} />
+            <ViewChangeHandler onViewChange={handleViewChange} />
             <RegionNavigator region={selectedRegion} shouldNavigate={shouldNavigate} />
+            <MapViewRestorer targetZoom={initialZoom} targetCenter={initialCenter} />
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

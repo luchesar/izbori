@@ -40,9 +40,25 @@ function App() {
     return params.get('table_mun') || null;
   });
 
+  const [mapZoom, setMapZoom] = useState<number>(() => {
+    const params = getUrlParams();
+    const zoom = params.get('zoom');
+    return zoom ? parseInt(zoom, 10) : 7;
+  });
+
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
+    const params = getUrlParams();
+    const lat = params.get('lat');
+    const lng = params.get('lng');
+    return (lat && lng) ? [parseFloat(lat), parseFloat(lng)] : [42.7339, 25.4858];
+  });
+
   // Selected region is loaded later after data is available, 
   // but we store the initial ID to resolve it.
   const initialSelectionId = useRef<string | null>(getUrlParams().get('selection'));
+  
+  // Track if we're currently handling a popstate event to avoid creating new history entries
+  const isHandlingPopState = useRef(false);
 
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
@@ -192,15 +208,97 @@ function App() {
       }
     }
 
+    // Map view (zoom and center) - only in map mode
+    if (viewMode === 'map') {
+      const defaultZoom = 7;
+      const defaultCenter: [number, number] = [42.7339, 25.4858];
+      
+      if (mapZoom !== defaultZoom) {
+        params.set('zoom', mapZoom.toString());
+      }
+      if (Math.abs(mapCenter[0] - defaultCenter[0]) > 0.01 || Math.abs(mapCenter[1] - defaultCenter[1]) > 0.01) {
+        params.set('lat', mapCenter[0].toFixed(4));
+        params.set('lng', mapCenter[1].toFixed(4));
+      }
+    }
+
     const queryString = params.toString();
     const newUrl = queryString 
       ? `${window.location.pathname}?${queryString}`
       : window.location.pathname;
       
-    // Use replaceState to update URL without adding history entries for every click
-    window.history.replaceState(null, '', newUrl);
+    // Use pushState for user actions, replaceState when handling popstate
+    if (isHandlingPopState.current) {
+      window.history.replaceState(null, '', newUrl);
+    } else {
+      window.history.pushState(null, '', newUrl);
+    }
     
-  }, [viewMode, selectedElections, tableMunicipality, selectedRegion]);
+  }, [viewMode, selectedElections, tableMunicipality, selectedRegion, mapZoom, mapCenter]);
+
+  // --- Listen to Browser Navigation (Back/Forward) ---
+  useEffect(() => {
+    const handlePopState = () => {
+      isHandlingPopState.current = true;
+      const params = getUrlParams();
+      
+      // Update view mode
+      const urlView = params.get('view');
+      setViewMode(urlView === 'table' ? 'table' : 'map');
+      
+      // Update selected elections
+      const urlElections = params.get('elections');
+      setSelectedElections(urlElections ? urlElections.split(',') : ['2024-10-27-ns']);
+      
+      // Update table municipality
+      setTableMunicipality(params.get('table_mun') || null);
+      
+      // Update map view
+      const zoom = params.get('zoom');
+      const lat = params.get('lat');
+      const lng = params.get('lng');
+      
+      if (zoom) {
+        const newZoom = parseInt(zoom, 10);
+        setMapZoom(newZoom);
+      }
+      if (lat && lng) {
+        const newCenter: [number, number] = [parseFloat(lat), parseFloat(lng)];
+        setMapCenter(newCenter);
+      }
+      
+      // Update selected region from URL
+      const selectionId = params.get('selection');
+      if (selectionId && municipalities.length > 0) {
+        let found: SelectedRegion | undefined;
+        
+        if (selectionId.startsWith('s-')) {
+          const ekatte = selectionId.substring(2);
+          found = places.find(p => p.properties.ekatte === ekatte);
+        } else if (selectionId.startsWith('m-')) {
+          const codeOrName = selectionId.substring(2);
+          found = municipalities.find(m => m.properties.nuts4 === codeOrName || m.properties.name === codeOrName);
+        }
+        
+        if (found) {
+          setSelectedRegion(found);
+          setShouldNavigate(false);
+        } else {
+          setSelectedRegion(null);
+        }
+      } else {
+        setSelectedRegion(null);
+      }
+      
+      // Reset flag after state updates have been queued
+      setTimeout(() => {
+        isHandlingPopState.current = false;
+      }, 0);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [municipalities, places]); // Re-create listener when data changes
 
 
   // --- Handlers ---
@@ -294,7 +392,13 @@ function App() {
                   places={places}
                   selectedRegion={selectedRegion}
                   shouldNavigate={shouldNavigate}
-                  onRegionSelect={handleRegionSelect} 
+                  onRegionSelect={handleRegionSelect}
+                  initialZoom={mapZoom}
+                  initialCenter={mapCenter}
+                  onViewChange={(zoom, center) => {
+                    setMapZoom(zoom);
+                    setMapCenter(center);
+                  }}
               />
             </div>
             

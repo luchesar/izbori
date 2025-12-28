@@ -68,7 +68,7 @@ function ElectionResultView({ data, electionId, compact = false }: { data: Selec
                 </h3>
             )}
             <div className="space-y-3">
-                {data.electionData?.topParties.map((result, idx) => (
+                {data.electionData?.topParties?.map((result, idx) => (
                     <div key={result.party} className="group">
                         <div className="flex justify-between items-center text-sm mb-1">
                             <span className="font-medium text-gray-700 dark:text-gray-200 truncate pr-2" title={result.party}>
