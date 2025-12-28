@@ -48,7 +48,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
   return (
     <div 
         ref={wrapperRef}
-        className="absolute top-4 left-4 right-4 z-[9999] md:left-1/2 md:-translate-x-1/2 md:max-w-md"
+        className="relative w-full"
     >
       <div className="relative group">
         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">

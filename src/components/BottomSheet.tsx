@@ -150,8 +150,8 @@ export default function BottomSheet({ data, selectedElections, comparativeData, 
             onDragEnd={handleDragEnd}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className={clsx(
-                "fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 flex flex-col transition-all duration-300",
-                selectedElections.length > 1 ? "md:max-w-4xl md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe h-[80vh]" : "h-[90vh] md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4 md:mb-safe"
+                "fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 flex flex-col transition-all duration-300 max-h-[85vh]",
+                selectedElections.length > 1 ? "md:max-w-4xl md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4" : "md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4"
             )}
           >
             {/* Handle bar - tap to expand/collapse */}

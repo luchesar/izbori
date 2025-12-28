@@ -263,24 +263,30 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative flex flex-col">
-        {/* Top Bar */}
-        <div className="absolute top-4 left-4 right-4 z-20 flex items-start gap-4 pointer-events-none">
-            <div className="pointer-events-auto flex items-start gap-2">
-                <div className="w-80 sm:w-96">
-                    <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
+        {/* Top Bar - All Controls */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center">
+            <div className="w-full max-w-[680px] p-3 sm:p-4 flex flex-col gap-3">
+                {/* Row 1: SearchBar + ViewSelector */}
+                <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                        <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
+                    </div>
+                    <ViewSelector viewMode={viewMode} onChange={setViewMode} />
                 </div>
-                <ViewSelector viewMode={viewMode} onChange={setViewMode} />
+                
+                {/* Row 2: ElectionSelector */}
+                <div className="flex items-center gap-2">
+                    <ElectionSelector 
+                      selectedElections={selectedElections}
+                      onElectionChange={setSelectedElections}
+                      isOpen={selectorOpen}
+                      onToggle={() => setSelectorOpen(!selectorOpen)}
+                      onClose={() => setSelectorOpen(false)}
+                    />
+                </div>
             </div>
         </div>
 
-        <ElectionSelector 
-          selectedElections={selectedElections}
-          onElectionChange={setSelectedElections}
-          isOpen={selectorOpen}
-          onToggle={() => setSelectorOpen(!selectorOpen)}
-          onClose={() => setSelectorOpen(false)}
-        />
-        
         <div className="flex-1 relative overflow-hidden">
             <div className={clsx("absolute inset-0 z-0", viewMode === 'map' ? 'block' : 'hidden')}>
               <Map 
@@ -293,7 +299,7 @@ function App() {
             </div>
             
             {viewMode === 'table' && (
-                <div className="absolute inset-0 z-10 bg-white dark:bg-zinc-900 pt-32">
+                <div className="absolute inset-0 z-10 bg-white dark:bg-zinc-900 pt-36">
                   <ErrorBoundary>
                     <TableView 
                       selectedElections={selectedElections}

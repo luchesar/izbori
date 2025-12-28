@@ -48,7 +48,7 @@ export default function ElectionSelector({ selectedElections, onElectionChange, 
     : `${selectedElections.length} избора`;
 
   return (
-    <div className="absolute top-20 left-4 z-[9998]" ref={containerRef}>
+    <div className="relative" ref={containerRef}>
       <div className="relative">
         <button
           onClick={onToggle}
