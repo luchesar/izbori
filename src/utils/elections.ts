@@ -398,7 +398,12 @@ export function aggregateSettlementsToMunicipalities(
   // Aggregate election data for each municipality
   return municipalityGeo.features.map(feature => {
     const munName = feature.properties.name;
-    const placesInMun = byMunicipality.get(munName) || [];
+    
+    // Handle mismatch: 'Столична община' (GeoJSON) vs 'Столична' (Places/CSV)
+    let lookupName = munName;
+    if (munName === 'Столична община') lookupName = 'Столична';
+    
+    const placesInMun = byMunicipality.get(lookupName) || [];
     
     // Aggregate all party votes from settlements in this municipality
     const aggregatedParties: Record<string, number> = {};
@@ -436,6 +441,7 @@ export function aggregateSettlementsToMunicipalities(
       electionData = {
         totalVotes,
         activity,
+        eligibleVoters: totalEligible,
         topParties
       };
     }
@@ -531,5 +537,96 @@ export async function getTopPartiesFromLastNElections(n: number = 3): Promise<st
       .sort(([, votesA], [, votesB]) => votesB - votesA)
       .slice(0, 5)
       .map(([party]) => party);
+}
+
+export interface AggregatedElectionStats {
+    totalVotes: number;
+    activity: number;
+    eligibleVoters: number;
+    topParties: Array<{ party: string; votes: number; percentage: number }>;
+}
+
+export async function getNationalResults(electionId: string): Promise<AggregatedElectionStats> {
+    const settlementResults = await getElectionData({ electionId, regionType: 'settlement' });
+    
+    let totalVotes = 0;
+    let totalEligible = 0;
+    const aggregatedParties: Record<string, number> = {};
+
+    Object.values(settlementResults).forEach(data => {
+        totalVotes += data.total || 0;
+        totalEligible += data.meta?.eligible || 0;
+        
+        if (data.results) {
+             Object.entries(data.results as Record<string, number>).forEach(([party, votes]) => {
+                  aggregatedParties[party] = (aggregatedParties[party] || 0) + votes;
+             });
+        }
+    });
+
+    // If national data available, prefer that? 
+    // Currently we only have regional CSVs. Aggregation is safest.
+    
+    const topParties = Object.entries(aggregatedParties)
+        .map(([party, votes]) => ({ 
+          party, 
+          votes, 
+          percentage: totalVotes > 0 ? (votes / totalVotes) * 100 : 0 
+        }))
+        .sort((a, b) => b.votes - a.votes);
+
+    const activity = totalEligible > 0 ? totalVotes / totalEligible : 0;
+
+    return {
+        totalVotes,
+        activity,
+        eligibleVoters: totalEligible,
+        topParties
+    };
+}
+
+export async function getMunicipalitiesByVoters(electionId: string): Promise<MunicipalityData[]> {
+    const [geo, placesGeo, results] = await Promise.all([
+        loadMunicipalitiesGeoJSON(),
+        loadSettlementsGeoJSON(),
+        getElectionData({ electionId, regionType: 'settlement' })
+    ]);
+    
+    const placesData = placesGeo.features.map((f: any) => ({
+             ekatte: f.properties.ekatte,
+             name: f.properties.name,
+             oblast: f.properties.oblast,
+             obshtina: f.properties.obshtina
+    }));
+
+    const municipalities = aggregateSettlementsToMunicipalities(placesData, results, geo);
+    
+    return municipalities.sort((a, b) => {
+        const eligibleA = a.electionData?.eligibleVoters || 0;
+        const eligibleB = b.electionData?.eligibleVoters || 0;
+        return eligibleB - eligibleA;
+    });
+}
+
+export async function getSettlementsByVotersInMunicipality(electionId: string, munName: string): Promise<Place[]> {
+    const [placesGeo, results] = await Promise.all([
+        loadSettlementsGeoJSON(),
+        getElectionData({ electionId, regionType: 'settlement' })
+    ]);
+    
+    const settlementsInMun = mergePlacesData(placesGeo, results)
+        .filter(p => p.properties.obshtina === munName);
+        
+    return settlementsInMun.sort((a, b) => {
+        const eligibleA = results[a.properties.ekatte]?.meta?.eligible || 0;
+        const eligibleB = results[b.properties.ekatte]?.meta?.eligible || 0;
+        return eligibleB - eligibleA;
+    }).map(s => {
+        // Ensure eligibleVoters is populated in electionData
+        if (s.electionData) {
+             s.electionData.eligibleVoters = results[s.properties.ekatte]?.meta?.eligible || 0;
+        }
+        return s;
+    });
 }
 

@@ -1,31 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import clsx from 'clsx';
 import Map from './components/Map';
 import BottomSheet from './components/BottomSheet';
 import SearchBar from './components/SearchBar';
 import ElectionSelector from './components/ElectionSelector';
+import TableView from './components/TableView';
+import ViewSelector from './components/ViewSelector';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { MunicipalityData, SelectedRegion, Place } from './types';
 import { 
   loadMunicipalitiesGeoJSON, 
   loadSettlementsGeoJSON,
   getElectionData, 
-  mergeData,
   mergePlacesData,
   aggregateSettlementsToMunicipalities,
   searchRegions 
 } from './utils/elections';
 
 function App() {
+  // --- Initialization from URL ---
+  const getUrlParams = () => {
+    if (typeof window === 'undefined') return new URLSearchParams();
+    return new URLSearchParams(window.location.search);
+  };
+
+  const [viewMode, setViewMode] = useState<'map' | 'table'>(() => {
+    const params = getUrlParams();
+    return params.get('view') === 'table' ? 'table' : 'map';
+  });
+
+  const [selectedElections, setSelectedElections] = useState<string[]>(() => {
+    const params = getUrlParams();
+    const elections = params.get('elections');
+    return elections ? elections.split(',') : ['2024-10-27-ns'];
+  });
+
+  const [tableMunicipality, setTableMunicipality] = useState<string | null>(() => {
+    const params = getUrlParams();
+    return params.get('table_mun') || null;
+  });
+
+  // Selected region is loaded later after data is available, 
+  // but we store the initial ID to resolve it.
+  const initialSelectionId = useRef<string | null>(getUrlParams().get('selection'));
+
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [selectedElections, setSelectedElections] = useState<string[]>(['2024-10-27-ns']);
+
+  // --- Data State ---
   const [electionsData, setElectionsData] = useState<Record<string, { municipalities: MunicipalityData[], places: Place[] }>>({});
-  
-  // Primary data for the map (from the first selected election)
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // --- Data Loading ---
   useEffect(() => {
     async function loadData() {
       try {
@@ -63,24 +92,26 @@ function App() {
         
         setElectionsData(newDataMap);
         
-        // Use data from the first selected election for the map
+        // Use data from the first selected election for the map/resolution
         const primaryElectionId = selectedElections[0];
         if (newDataMap[primaryElectionId]) {
-          setMunicipalities(newDataMap[primaryElectionId].municipalities);
-          setPlaces(newDataMap[primaryElectionId].places);
+          const loadedMuns = newDataMap[primaryElectionId].municipalities;
+          const loadedPlaces = newDataMap[primaryElectionId].places;
+
+          setMunicipalities(loadedMuns);
+          setPlaces(loadedPlaces);
           
-          // Update selected region if exists
+          // Refresh current selection object with new data if exists
           if (selectedRegion) {
              const isSettlement = 'ekatte' in selectedRegion.properties;
-             const primaryData = newDataMap[primaryElectionId];
+             let updated: SelectedRegion | undefined;
              
              if (isSettlement) {
-                const updated = primaryData.places.find(p => p.properties.ekatte === selectedRegion.properties.ekatte);
-                if (updated) setSelectedRegion(updated);
+                updated = loadedPlaces.find(p => p.properties.ekatte === selectedRegion.properties.ekatte);
              } else {
-                const updated = primaryData.municipalities.find(m => m.properties.name === selectedRegion.properties.name);
-                if (updated) setSelectedRegion(updated);
+                updated = loadedMuns.find(m => m.properties.name === selectedRegion.properties.name);
              }
+             if (updated) setSelectedRegion(updated);
           }
         }
         
@@ -91,18 +122,111 @@ function App() {
       }
     }
     loadData();
-  }, [selectedElections]); // Reload when selected elections change
+  }, [selectedElections]);
 
-  // Handle selection from map click - no navigation
+  // --- Resolve Initial Selection from URL ---
+  useEffect(() => {
+    if (!loading && initialSelectionId.current && municipalities.length > 0) {
+      const id = initialSelectionId.current;
+      initialSelectionId.current = null; // Consume
+      
+      let found: SelectedRegion | undefined;
+      
+      if (id.startsWith('s-')) {
+        const ekatte = id.substring(2);
+        found = places.find(p => p.properties.ekatte === ekatte);
+      } else if (id.startsWith('m-')) {
+        const codeOrName = id.substring(2);
+        // Try matching NUTS4 or Name
+        found = municipalities.find(m => m.properties.nuts4 === codeOrName || m.properties.name === codeOrName);
+      }
+      
+      if (found) {
+        setSelectedRegion(found);
+        setShouldNavigate(true); // Navigate to it
+        
+        // If in table mode, also drill down to municipality if it's a settlement?
+        // Wait, tableMunicipality should handle drill down view.
+        // But if user shares URL of a settlement selection in Table View, 
+        // they probably want to see the table for that settlement's municipality.
+        // If 'table_mun' is missing but selection is present, infer it?
+        // Let's implement that inference.
+        const isSettlement = 'ekatte' in found.properties;
+        if (viewMode === 'table' && !tableMunicipality) {
+             if (isSettlement) {
+                setTableMunicipality(found.properties.obshtina || null);
+             } else {
+                setTableMunicipality(found.properties.name);
+             }
+        }
+      }
+    }
+  }, [loading, municipalities, places, viewMode]); // Depend on data load
+
+  // --- Sync State to URL ---
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    // View Mode
+    if (viewMode === 'table') params.set('view', 'table');
+    
+    // Elections
+    if (selectedElections.length !== 1 || selectedElections[0] !== '2024-10-27-ns') {
+      params.set('elections', selectedElections.join(','));
+    }
+    
+    // Table Municipality (Drill down)
+    if (viewMode === 'table' && tableMunicipality) {
+      params.set('table_mun', tableMunicipality);
+    }
+    
+    // Selection
+    if (selectedRegion) {
+      const isSettlement = 'ekatte' in selectedRegion.properties;
+      if (isSettlement) {
+        params.set('selection', `s-${selectedRegion.properties.ekatte}`);
+      } else {
+        // Prefer NUTS4 code for stability, fallback to name
+        const id = selectedRegion.properties.nuts4 || selectedRegion.properties.name;
+        params.set('selection', `m-${id}`);
+      }
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString 
+      ? `${window.location.pathname}?${queryString}`
+      : window.location.pathname;
+      
+    // Use replaceState to update URL without adding history entries for every click
+    window.history.replaceState(null, '', newUrl);
+    
+  }, [viewMode, selectedElections, tableMunicipality, selectedRegion]);
+
+
+  // --- Handlers ---
+
   const handleRegionSelect = (data: SelectedRegion) => {
     setSelectedRegion(data);
-    setShouldNavigate(false);
+    setShouldNavigate(false); // Don't fly on manual click/select unless from search?
+    // Wait, UI behavior: 
+    // - Map click: select.
+    // - Table click arrow: select.
+    // - Search select: select + fly.
   };
 
-  // Handle selection from search - with navigation
   const handleSearchSelect = (data: SelectedRegion) => {
     setSelectedRegion(data);
     setShouldNavigate(true);
+    
+    // If in table view, also drill down to appropriate municipality
+    if (viewMode === 'table') {
+        const isSettlement = 'ekatte' in data.properties;
+        if (isSettlement) {
+            setTableMunicipality(data.properties.obshtina || null);
+        } else {
+            setTableMunicipality(data.properties.name);
+        }
+    }
   };
 
   const handleCloseSheet = () => {
@@ -114,7 +238,7 @@ function App() {
     return searchRegions(query, municipalities, places);
   };
 
-  // Calculate comparative data for the selected region across all selected elections
+  // Comparative data calculation
   const comparativeData = selectedRegion ? selectedElections.reduce((acc, electionId) => {
     const data = electionsData[electionId];
     if (data) {
@@ -128,7 +252,7 @@ function App() {
     return acc;
   }, {} as Record<string, SelectedRegion | null>) : {};
 
-  if (loading && municipalities.length === 0) { // Only show full loading if we have nothing
+  if (loading && municipalities.length === 0) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-black text-gray-500">
         Зареждане на данни...
@@ -137,32 +261,60 @@ function App() {
   }
 
   return (
-    <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative">
-      <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
-      <ElectionSelector 
-        selectedElections={selectedElections}
-        onElectionChange={setSelectedElections}
-        isOpen={selectorOpen}
-        onToggle={() => setSelectorOpen(!selectorOpen)}
-        onClose={() => setSelectorOpen(false)}
-      />
-      
-      <Map 
-        municipalities={municipalities}
-        places={places}
-        selectedRegion={selectedRegion}
-        shouldNavigate={shouldNavigate}
-        onRegionSelect={handleRegionSelect} 
-      />
-      
-      <BottomSheet 
-        data={selectedRegion} 
-        selectedElections={selectedElections}
-        comparativeData={comparativeData}
-        onClose={handleCloseSheet} 
-        onScroll={() => setSelectorOpen(false)}
-      />
-    </div>
+    <ErrorBoundary>
+      <div className="h-full w-full bg-gray-50 dark:bg-black overflow-hidden relative flex flex-col">
+        {/* Top Bar */}
+        <div className="absolute top-4 left-4 right-4 z-20 flex items-start gap-4 pointer-events-none">
+            <div className="pointer-events-auto flex items-start gap-2">
+                <div className="w-80 sm:w-96">
+                    <SearchBar onSearch={handleSearch} onSelect={handleSearchSelect} />
+                </div>
+                <ViewSelector viewMode={viewMode} onChange={setViewMode} />
+            </div>
+        </div>
+
+        <ElectionSelector 
+          selectedElections={selectedElections}
+          onElectionChange={setSelectedElections}
+          isOpen={selectorOpen}
+          onToggle={() => setSelectorOpen(!selectorOpen)}
+          onClose={() => setSelectorOpen(false)}
+        />
+        
+        <div className="flex-1 relative overflow-hidden">
+            <div className={clsx("absolute inset-0 z-0", viewMode === 'map' ? 'block' : 'hidden')}>
+              <Map 
+                  municipalities={municipalities}
+                  places={places}
+                  selectedRegion={selectedRegion}
+                  shouldNavigate={shouldNavigate}
+                  onRegionSelect={handleRegionSelect} 
+              />
+            </div>
+            
+            {viewMode === 'table' && (
+                <div className="absolute inset-0 z-10 bg-white dark:bg-zinc-900 pt-32">
+                  <ErrorBoundary>
+                    <TableView 
+                      selectedElections={selectedElections}
+                      onRegionSelect={handleRegionSelect}
+                      viewedMunicipality={tableMunicipality}
+                      onViewedMunicipalityChange={setTableMunicipality}
+                    />
+                  </ErrorBoundary>
+                </div>
+            )}
+        </div>
+        
+        <BottomSheet 
+          data={selectedRegion} 
+          selectedElections={selectedElections}
+          comparativeData={comparativeData}
+          onClose={handleCloseSheet} 
+          onScroll={() => setSelectorOpen(false)}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
 

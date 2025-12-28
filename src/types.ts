@@ -35,6 +35,7 @@ export interface MunicipalityData extends MunicipalityFeature {
   electionData?: {
     totalVotes: number;
     activity: number;
+    eligibleVoters?: number;
     topParties:Array<{ party: string; votes: number; percentage: number }>;
   };
 }
@@ -55,6 +56,7 @@ export interface Place {
   electionData?: {
     totalVotes: number;
     activity: number;
+    eligibleVoters?: number;
     topParties: Array<{ party: string; votes: number; percentage: number }>;
   };
 }

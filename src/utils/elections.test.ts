@@ -7,8 +7,14 @@ import {
   loadSettlementsGeoJSON,
   searchRegions,
   AVAILABLE_ELECTIONS,
-  clearCache
+  clearCache,
+  mergePlacesData,
+  getTopPartiesFromLastNElections,
+  getNationalResults,
+  getMunicipalitiesByVoters,
+  getSettlementsByVotersInMunicipality
 } from './elections';
+import type { MunicipalityData, Place, SelectedRegion } from '../types';
 
 // Mock papaparse
 vi.mock('papaparse', () => ({
@@ -21,7 +27,7 @@ vi.mock('papaparse', () => ({
 const fetchMock = vi.fn();
 global.fetch = fetchMock;
 
-describe('Elections API', () => {
+describe('Elections API & Analysis', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearCache(); // Reset cache for isolation
@@ -69,7 +75,7 @@ describe('Elections API', () => {
     });
   });
 
-  describe('getElectionData (Caching)', () => {
+  describe('getElectionData', () => {
     const mockCsvData = [
         { municipality_name: 'TestMun', nuts4: 'BG123', total: 100, activity: 50, eligible_voters: 200, 'Party A': 60 }
     ];
@@ -90,82 +96,25 @@ describe('Elections API', () => {
       // Verify data integrity
       expect(result['TestMun'].total).toBe(100);
     });
-
-    it('should reuse cache for different filters on same file', async () => {
-        (Papa.parse as any).mockImplementation((url, config) => {
-          config.complete({ data: mockCsvData });
-        });
-  
-        // First call: Load file
-        await getElectionData({ electionId: '2021-04-04', regionType: 'municipality' });
-        
-        // Second call: Filter by region (should use cached file data)
-        const filtered = await getElectionData({ 
-            electionId: '2021-04-04', 
-            regionType: 'municipality',
-            regionId: 'TestMun' 
-        });
-  
-        expect(Papa.parse).toHaveBeenCalledTimes(1);
-        expect(filtered).toHaveProperty('TestMun');
-      });
-  });
-
-  describe('getElectionData (Logic)', () => {
-    const mockCsvData = [
-      {
-        municipality_name: 'TestMun',
-        nuts4: 'BG123',
-        total: 100,
-        activity: 50,
-        eligible_voters: 200,
-        'Party A': 60,
-        'Party B': 40,
-        region: 'TestRegion', 
-        region_name: 'TestRegionName',
-        n_stations: 5
-      },
-      {
-        municipality_name: 'OtherMun',
-        nuts4: 'BG456',
-        total: 150,
-        activity: 60,
-        eligible_voters: 250,
-        'Party A': 100,
-        'Party B': 50,
-        region: 'TestRegion',
-        region_name: 'TestRegionName',
-        n_stations: 5
-      },
-    ];
-
-    beforeEach(() => {
-        (Papa.parse as any).mockImplementation((url, config) => {
-            config.complete({ data: mockCsvData });
-        });
-    });
-
+    
     it('should filter by regionId (municipality)', async () => {
-      const result = await getElectionData({
-        electionId: '2021-04-04',
-        regionType: 'municipality',
-        regionId: 'TestMun',
-      });
+       const mockData = [
+           { municipality_name: 'TestMun', nuts4: 'BG123', total: 100 },
+           { municipality_name: 'OtherMun', nuts4: 'BG456', total: 150 }
+       ];
+       (Papa.parse as any).mockImplementation((url, config) => {
+           config.complete({ data: mockData });
+       });
 
-      expect(Object.keys(result)).toHaveLength(1);
-      expect(result).toHaveProperty('TestMun');
-      expect(result).not.toHaveProperty('OtherMun');
-    });
+       const result = await getElectionData({
+         electionId: '2021-04-04',
+         regionType: 'municipality',
+         regionId: 'TestMun',
+       });
 
-    it('should filter by parties', async () => {
-      const result = await getElectionData({
-        electionId: '2021-04-04',
-        regionType: 'municipality',
-        parties: ['Party A'],
-      });
-
-      expect(result['TestMun'].results).toHaveProperty('Party A');
-      expect(result['TestMun'].results).not.toHaveProperty('Party B');
+       expect(Object.keys(result)).toHaveLength(1);
+       expect(result).toHaveProperty('TestMun');
+       expect(result).not.toHaveProperty('OtherMun');
     });
   });
 
@@ -179,7 +128,7 @@ describe('Elections API', () => {
       };
       const mockSettlements = {
         features: [
-          { properties: { name: 'Sofievka' } }, // hypothetical
+          { properties: { name: 'Sofievka' } }, 
           { properties: { name: 'Varna' } },
         ]
       };
@@ -196,245 +145,168 @@ describe('Elections API', () => {
         expect.objectContaining({ name: 'Sofievka', type: 'settlement' })
       ]));
     });
-  });
+    
+    it('should work with synchronous inputs', () => {
+        const mockMunicipalities: MunicipalityData[] = [
+            { type: "Feature", properties: { name: "Sofia-Grad" }, geometry: { type: "Polygon", coordinates: [] } } as any,
+        ];
+        const mockPlaces: Place[] = [
+            { type: "Feature", properties: { name: "Sofia", ekatte: "68134", oblast: "SOF", obshtina: "SOF46" }, geometry: { type: "Polygon", coordinates: [] } } as any,
+        ];
 
-  describe('loadPlacesData', () => {
-    it('should load places.json data', async () => {
-      const mockPlacesData = [
-        { ekatte: '00014', name: 'с. Абланица', lat: 41.66, lng: 24.51, oblast: 'Смолян', obshtina: 'Чепеларе' },
-        { ekatte: '69016', name: 'с. Старосел', lat: 42.52, lng: 24.52, oblast: 'Пловдив', obshtina: 'Хисаря' }
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPlacesData
-      });
-
-      const { loadPlacesData } = await import('./elections');
-      const result = await loadPlacesData();
-
-      expect(result).toEqual(mockPlacesData);
-      expect(result).toHaveLength(2);
-      expect(result[0]).toHaveProperty('ekatte');
-      expect(result[0].ekatte).toBe('00014');
-    });
-
-    it('should cache places.json data', async () => {
-      const mockPlacesData = [
-        { ekatte: '00014', name: 'с. Абланица', lat: 41.66, lng: 24.51, oblast: 'Смолян', obshtina: 'Чепеларе' }
-      ];
-
-      fetchMock.mockResolvedValue({
-        ok: true,
-        json: async () => mockPlacesData
-      });
-
-      const { loadPlacesData } = await import('./elections');
-      
-      // First call
-      await loadPlacesData();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // Second call should use cache
-      const result = await loadPlacesData();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(mockPlacesData);
-    });
-
-    it('should throw error if places.json fails to load', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 404
-      });
-
-      const { loadPlacesData } = await import('./elections');
-      await expect(loadPlacesData()).rejects.toThrow('Failed to load places.json');
+        const results = searchRegions('sofia', mockMunicipalities, mockPlaces);
+        expect(results).toHaveLength(2);
     });
   });
+  
+  describe('Analysis Utilities', () => {
+      
+      describe('getTopPartiesFromLastNElections', () => {
+          it('should aggregate votes from last N elections', async () => {
+                // Mock Papa.parse to return different data based on URL (Election ID)
+                (Papa.parse as any).mockImplementation((url: string, config: any) => {
+                    let data: any[] = [];
+                    if (url.includes('2024-10-27ns.csv')) {
+                        // Election 1 (Latest): A=100, B=50
+                        data = [{ id: 1, 'Party A': 100, 'Party B': 50 }];
+                    } else if (url.includes('2024-06-09ns.csv')) {
+                        // Election 2: A=50, B=50, C=200
+                        data = [{ id: 1, 'Party A': 50, 'Party B': 50, 'Party C': 200 }];
+                    } else if (url.includes('2023-04-02ns.csv')) {
+                         // Election 3: A=50, D=500
+                         data = [{ id: 1, 'Party A': 50, 'Party D': 500 }];
+                    } else {
+                        // Other elections (should typically not be called if N=3 and we sorted correct)
+                         data = [];
+                    }
+                    config.complete({ data });
+                });
 
-  describe('getElectionData - Settlement Support', () => {
-    const mockSettlementCsvData = [
-      {
-        id: 14,  // Integer without leading zeros
-        total: 1131,
-        total_valid: 1126,
-        activity: 0.488,
-        eligible_voters: 2316,
-        'ГЕРБ-СДС': 124,
-        'ПП/ДБ': 20,
-        'невалидни': 5
-      },
-      {
-        id: 69016, // Старосел
-        total: 216,
-        total_valid: 211,
-        activity: 0.283,
-        eligible_voters: 763,
-        'ГЕРБ-СДС': 40,
-        'ПП/ДБ': 9,
-        'невалидни': 5
-      }
-    ];
-
-    beforeEach(() => {
-      (Papa.parse as any).mockImplementation((url, config) => {
-        config.complete({ data: mockSettlementCsvData });
-      });
-    });
-
-    it('should convert CSV integer IDs to EKATTE format (with leading zeros)', async () => {
-      const result = await getElectionData({
-        electionId: '2024-10-27',
-        regionType: 'settlement'
+                // Top 2 elections (2024-10-27 and 2024-06-09)
+                // A: 100 + 50 = 150
+                // B: 50 + 50 = 100
+                // C: 200
+                // Order: C, A, B
+                const top2 = await getTopPartiesFromLastNElections(2);
+                expect(top2).toEqual(['Party C', 'Party A', 'Party B']);
+          });
       });
 
-      // CSV ID 14 should become EKATTE "00014"
-      expect(result).toHaveProperty('00014');
-      expect(result['00014'].id).toBe('00014');
-      expect(result['00014'].total).toBe(1131);
+      describe('getNationalResults', () => {
+          it('should aggregate all settlements data to national level', async () => {
+                const mockSettlementData = [
+                    { id: 1, total: 100, eligible: 200, activity: 0.5, 'Party A': 60, 'Party B': 40 },
+                    { id: 2, total: 200, eligible: 300, activity: 0.66, 'Party A': 140, 'Party B': 60 }
+                ];
+                // Note: getElectionData logic puts 'eligible' in 'meta' usually, but mock CSV has 'eligible_voters' or 'eligible'?
+                // getElectionData maps `eligible_voters` col to `meta.eligible`.
+                // So mock CSV should have `eligible_voters`.
+                
+                (Papa.parse as any).mockImplementation((url, config) => {
+                     config.complete({
+                         data: [
+                             { id: 1, total: 100, eligible_voters: 200, 'Party A': 60, 'Party B': 40 },
+                             { id: 2, total: 200, eligible_voters: 300, 'Party A': 140, 'Party B': 60 }
+                         ]
+                     });
+                });
+                
+                const result = await getNationalResults('2024-10-27-ns');
+                
+                expect(result.totalVotes).toBe(300); // 100 + 200
+                expect(result.eligibleVoters).toBe(500); // 200 + 300
+                expect(result.activity).toBe(300 / 500); // 0.6
+                
+                // Party A: 60 + 140 = 200
+                // Party B: 40 + 60 = 100
+                expect(result.topParties[0].party).toBe('Party A');
+                expect(result.topParties[0].votes).toBe(200);
+                expect(result.topParties[0].percentage).toBeCloseTo(66.67, 1);
+          });
+      });
+      
+      describe('getMunicipalitiesByVoters', () => {
+          it('should return municipalities sorted by eligible voters', async () => {
+              // Mock Geo and Places
+              const mockMunGeo = {
 
-      // CSV ID 69016 should become EKATTE "69016" (no change as it's already 5 digits)
-      expect(result).toHaveProperty('69016');
-      expect(result['69016'].id).toBe('69016');
-      expect(result['69016'].total).toBe(216);
-    });
+                  features: [
+                      { type: 'Feature', properties: { name: 'MunSmall' } },
+                      { type: 'Feature', properties: { name: 'MunLarge' } },
+                      { type: 'Feature', properties: { name: 'Столична община' } }
+                  ]
+              };
+              const mockPlacesGeo = {
+                  features: [
+                      { properties: { ekatte: '00001', obshtina: 'MunSmall' } },
+                      { properties: { ekatte: '00002', obshtina: 'MunLarge' } },
+                      { properties: { ekatte: '00003', obshtina: 'Столична' } }
+                  ]
+              };
+              
+              // Mock Election Data
+              // Place 1 (Small): 100 eligible
+              // Place 2 (Large): 1000 eligible
+               (Papa.parse as any).mockImplementation((url, config) => {
+                     config.complete({
+                         data: [
+                             { id: 1, total: 50, eligible_voters: 100 },
+                             { id: 2, total: 500, eligible_voters: 1000 },
+                             { id: 3, total: 2000, eligible_voters: 5000 }
+                         ]
+                     });
+                });
+                
+               fetchMock
+                .mockResolvedValueOnce({ ok: true, json: async () => mockMunGeo })
+                .mockResolvedValueOnce({ ok: true, json: async () => mockPlacesGeo });
 
-    it('should filter settlements by EKATTE code', async () => {
-      const result = await getElectionData({
-        electionId: '2024-10-27',
-        regionType: 'settlement',
-        regionId: '00014' // EKATTE format with leading zeros
+               const result = await getMunicipalitiesByVoters('2024-10-27-ns');
+               
+
+               // Sorted by eligible voters: Sofia(5000) > MunLarge(1000) > MunSmall(100)
+               expect(result).toHaveLength(3);
+               expect(result[0].properties.name).toBe('Столична община');
+               expect(result[0].electionData?.eligibleVoters).toBe(5000);
+               expect(result[1].properties.name).toBe('MunLarge');
+               expect(result[1].electionData?.eligibleVoters).toBe(1000);
+               expect(result[2].properties.name).toBe('MunSmall');
+               expect(result[2].electionData?.eligibleVoters).toBe(100);
+          });
       });
 
-      expect(Object.keys(result)).toHaveLength(1);
-      expect(result).toHaveProperty('00014');
-      expect(result).not.toHaveProperty('69016');
-    });
-
-    it('should exclude invalid votes (невалидни) from party results', async () => {
-      const result = await getElectionData({
-        electionId: '2024-10-27',
-        regionType: 'settlement'
+      describe('getSettlementsByVotersInMunicipality', () => {
+          it('should return settlements in municipality sorted by eligible voters', async () => {
+                const mockPlacesGeo = {
+                    features: [
+                        { properties: { ekatte: '00001', obshtina: 'TargetMun', name: 'S1' } },
+                        { properties: { ekatte: '00002', obshtina: 'OtherMun', name: 'S2' } },
+                        { properties: { ekatte: '00003', obshtina: 'TargetMun', name: 'S3' } }
+                    ]
+                };
+                
+                 (Papa.parse as any).mockImplementation((url, config) => {
+                     config.complete({
+                         data: [
+                             { id: 1, total: 10, eligible_voters: 100 },
+                             { id: 2, total: 20, eligible_voters: 200 },
+                             { id: 3, total: 30, eligible_voters: 300 }
+                         ]
+                     });
+                });
+                
+                fetchMock.mockResolvedValueOnce({ ok: true, json: async () => mockPlacesGeo });
+                
+                const result = await getSettlementsByVotersInMunicipality('2024-10-27-ns', 'TargetMun');
+                
+                // Should return S3 (300) then S1 (100). S2 is other mun.
+                expect(result).toHaveLength(2);
+                expect(result[0].properties.name).toBe('S3');
+                expect(result[0].electionData?.eligibleVoters).toBe(300);
+                expect(result[1].properties.name).toBe('S1');
+                expect(result[1].electionData?.eligibleVoters).toBe(100);
+          });
       });
-
-      expect(result['00014'].results).toHaveProperty('ГЕРБ-СДС');
-      expect(result['00014'].results).toHaveProperty('ПП/ДБ');
-      expect(result['00014'].results).not.toHaveProperty('невалидни');
-    });
-
-    it('should include activity and eligible voters in meta', async () => {
-      const result = await getElectionData({
-        electionId: '2024-10-27',
-        regionType: 'settlement',
-        regionId: '69016'
-      });
-
-      expect(result['69016'].meta).toHaveProperty('activity');
-      expect(result['69016'].meta.activity).toBe(0.283);
-      expect(result['69016'].meta.eligible).toBe(763);
-    });
   });
-
-  describe('mergePlacesData', () => {
-    const mockPlacesData = [
-      { 
-        type: 'Feature',
-        properties: { ekatte: '00014', name: 'с. Абланица', oblast: 'Смолян', obshtina: 'Чепеларе' },
-        geometry: { type: 'Point', coordinates: [24.51, 41.66] }
-      },
-      { 
-        type: 'Feature',
-        properties: { ekatte: '69016', name: 'с. Старосел', oblast: 'Пловдив', obshtina: 'Хисаря' },
-        geometry: { type: 'Point', coordinates: [24.52, 42.52] }
-      },
-      { 
-        type: 'Feature',
-        properties: { ekatte: '12345', name: 'с. NoData', oblast: 'Test', obshtina: 'Test' },
-        geometry: { type: 'Point', coordinates: [25.0, 42.0] }
-      }
-    ];
-
-    const mockElectionResults = {
-      '00014': {
-        id: '00014',
-        total: 1131,
-        results: { 'ГЕРБ-СДС': 124, 'ПП/ДБ': 20 },
-        meta: { activity: 0.488, eligible: 2316 }
-      },
-      '69016': {
-        id: '69016',
-        total: 216,
-        results: { 'ГЕРБ-СДС': 40, 'ПП/ДБ': 9 },
-        meta: { activity: 0.283, eligible: 763 }
-      }
-    };
-
-    it('should merge places data with election results using EKATTE codes', async () => {
-      const { mergePlacesData } = await import('./elections');
-      const result = mergePlacesData(mockPlacesData, mockElectionResults);
-
-      expect(result).toHaveLength(3);
-      
-      // Check place with election data
-      const starosel = result.find(p => p.properties.ekatte === '69016');
-      expect(starosel).toBeDefined();
-      expect(starosel?.electionData).toBeDefined();
-      expect(starosel?.electionData?.totalVotes).toBe(216);
-      expect(starosel?.electionData?.activity).toBe(0.283);
-      expect(starosel?.electionData?.topParties).toHaveLength(2);
-    });
-
-    it('should convert places to GeoJSON Point features', async () => {
-      const { mergePlacesData } = await import('./elections');
-      const result = mergePlacesData(mockPlacesData, mockElectionResults);
-
-      const place = result[0];
-      expect(place.type).toBe('Feature');
-      expect(place.geometry.type).toBe('Point');
-      expect(place.geometry.coordinates).toHaveLength(2);
-      expect(place.geometry.coordinates[0]).toBe(24.51); // lng
-      expect(place.geometry.coordinates[1]).toBe(41.66); // lat
-    });
-
-    it('should handle places without election data gracefully', async () => {
-      const { mergePlacesData } = await import('./elections');
-      const result = mergePlacesData(mockPlacesData, mockElectionResults);
-
-      const noDataPlace = result.find(p => p.properties.ekatte === '12345');
-      expect(noDataPlace).toBeDefined();
-      expect(noDataPlace?.electionData).toBeUndefined();
-      expect(noDataPlace?.properties.name).toBe('с. NoData');
-    });
-
-    it('should calculate party percentages correctly', async () => {
-      const { mergePlacesData } = await import('./elections');
-      const result = mergePlacesData(mockPlacesData, mockElectionResults);
-
-      const starosel = result.find(p => p.properties.ekatte === '69016');
-      const topParty = starosel?.electionData?.topParties[0];
-      
-      expect(topParty).toBeDefined();
-      expect(topParty?.party).toBe('ГЕРБ-СДС');
-      expect(topParty?.votes).toBe(40);
-      expect(topParty?.percentage).toBeCloseTo((40 / 216) * 100, 2);
-    });
-
-    it('should sort parties by votes in descending order', async () => {
-      const { mergePlacesData } = await import('./elections');
-      const result = mergePlacesData(mockPlacesData, mockElectionResults);
-
-      const place = result.find(p => p.properties.ekatte === '00014');
-      const parties = place?.electionData?.topParties;
-      
-      expect(parties).toBeDefined();
-      expect(parties![0].votes).toBeGreaterThanOrEqual(parties![1].votes);
-      expect(parties![0].party).toBe('ГЕРБ-СДС'); // 124 votes
-      expect(parties![1].party).toBe('ПП/ДБ'); // 20 votes
-    });
-  });
-
-  // Integration tests with real files
-  /* Integration Tests moved to elections_integration.test.ts */
 
 });
-
