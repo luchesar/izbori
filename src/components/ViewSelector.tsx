@@ -1,4 +1,4 @@
-import { Map as MapIcon, Table2, BarChart2 } from 'lucide-react';
+import { Map as MapIcon, Table2, BarChart2, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -17,6 +17,7 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
             case 'map': return <MapIcon className="text-gray-700 dark:text-gray-200" size={24} />;
             case 'table': return <Table2 className="text-gray-700 dark:text-gray-200" size={24} />;
             case 'visualization': return <BarChart2 className="text-gray-700 dark:text-gray-200" size={24} />;
+            case 'anomalies': return <AlertTriangle className="text-gray-700 dark:text-gray-200" size={24} />;
         }
     };
 
@@ -24,6 +25,7 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
         { mode: 'map', icon: <MapIcon size={20} />, label: 'Карта' },
         { mode: 'table', icon: <Table2 size={20} />, label: 'Таблица' },
         { mode: 'visualization', icon: <BarChart2 size={20} />, label: 'Визуализация' },
+        { mode: 'anomalies', icon: <AlertTriangle size={20} />, label: 'Аномалии' },
     ];
 
     return (

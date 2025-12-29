@@ -32,6 +32,7 @@ function App() {
     const view = params.get('view');
     if (view === 'table') return 'table';
     if (view === 'visualization') return 'visualization';
+    if (view === 'anomalies') return 'anomalies';
     return 'map';
   });
 
@@ -83,6 +84,12 @@ function App() {
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Fraud analysis data
+  const [fraudData, setFraudData] = useState<{
+    meta?: { elections: string[]; top_parties: string[]; threshold: number };
+    settlements?: Record<string, { total_cv: number; party_cv: Record<string, number>; elections_count: number }>;
+  } | null>(null);
 
   // --- Data Loading ---
   useEffect(() => {
@@ -154,6 +161,14 @@ function App() {
     loadData();
   }, [selectedElections]);
 
+  // --- Enforce single selection in visualization mode ---
+  useEffect(() => {
+    if (viewMode === 'visualization' && selectedElections.length > 1) {
+      // Keep only the most recent (last) election
+      setSelectedElections([selectedElections[selectedElections.length - 1]]);
+    }
+  }, [viewMode]);
+
   // --- Load Party List for Visualization Mode ---
   useEffect(() => {
     if (viewMode === 'visualization' && selectedElections.length > 0) {
@@ -174,6 +189,31 @@ function App() {
       loadParties();
     }
   }, [viewMode, selectedElections]);
+
+  // --- Load Fraud Analysis Data for Anomalies Mode ---
+  useEffect(() => {
+    if (viewMode === 'anomalies' && !fraudData) {
+      const loadFraudData = async () => {
+        try {
+          const response = await fetch('/assets/data/fraud_analysis.json');
+          const data = await response.json();
+          setFraudData(data);
+          // Use top parties from fraud analysis for the party selector
+          if (data.meta?.top_parties) {
+            const parties = data.meta.top_parties.map((p: string) => ({
+              party: p,
+              votes: 0,
+              percentage: 0
+            }));
+            setPartyList(parties);
+          }
+        } catch (error) {
+          console.error('Failed to load fraud analysis data:', error);
+        }
+      };
+      loadFraudData();
+    }
+  }, [viewMode, fraudData]);
 
   // --- Resolve Initial Selection from URL ---
   useEffect(() => {
@@ -437,12 +477,19 @@ function App() {
                         onPartyChange={setSelectedParty}
                       />
                     )}
+                    {viewMode === 'anomalies' && (
+                      <PartySelector
+                        parties={partyList}
+                        selectedParty={selectedParty}
+                        onPartyChange={setSelectedParty}
+                      />
+                    )}
                 </div>
             </div>
         </div>
 
         <div className="flex-1 relative overflow-hidden">
-            <div className={clsx("absolute inset-0 z-0", (viewMode === 'map' || viewMode === 'visualization') ? 'block' : 'hidden')}>
+            <div className={clsx("absolute inset-0 z-0", (viewMode === 'map' || viewMode === 'visualization' || viewMode === 'anomalies') ? 'block' : 'hidden')}>
               <Map 
                   municipalities={municipalities}
                   places={places}
@@ -458,6 +505,8 @@ function App() {
                   visualizationMode={viewMode === 'visualization'}
                   selectedParty={selectedParty}
                   partyColor={selectedParty ? getPartyColor(selectedParty) : undefined}
+                  anomaliesMode={viewMode === 'anomalies'}
+                  fraudData={fraudData}
               />
             </div>
             
