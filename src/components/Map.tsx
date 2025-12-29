@@ -186,7 +186,19 @@ export default function Map({
 
   const onEachPlaceFeature = (feature: Place, layer: L.Layer) => {
     if (feature.properties && feature.properties.name) {
-       layer.bindTooltip(feature.properties.name, { direction: 'top', sticky: true });
+      // In visualization mode, include party percentage in tooltip
+      if (visualizationMode && selectedParty) {
+        const partyResult = feature.electionData?.topParties?.find(
+          (p: { party: string }) => p.party === selectedParty
+        );
+        const percentage = partyResult?.percentage || 0;
+        const tooltipText = percentage > 0 
+          ? `${feature.properties.name}: ${percentage.toFixed(1)}%`
+          : `${feature.properties.name}: няма данни`;
+        layer.bindTooltip(tooltipText, { direction: 'top', sticky: true });
+      } else {
+        layer.bindTooltip(feature.properties.name, { direction: 'top', sticky: true });
+      }
     }
     
     layer.on({
