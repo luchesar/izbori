@@ -1,15 +1,30 @@
-import { Layers, Map as MapIcon, Table2 } from 'lucide-react';
+import { Map as MapIcon, Table2, BarChart2 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import type { ViewMode } from '../types';
 
 interface ViewSelectorProps {
-    viewMode: 'map' | 'table';
-    onChange: (mode: 'map' | 'table') => void;
+    viewMode: ViewMode;
+    onChange: (mode: ViewMode) => void;
 }
 
 export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
+
+    const getIcon = () => {
+        switch (viewMode) {
+            case 'map': return <MapIcon className="text-gray-700 dark:text-gray-200" size={24} />;
+            case 'table': return <Table2 className="text-gray-700 dark:text-gray-200" size={24} />;
+            case 'visualization': return <BarChart2 className="text-gray-700 dark:text-gray-200" size={24} />;
+        }
+    };
+
+    const options: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
+        { mode: 'map', icon: <MapIcon size={20} />, label: 'Карта' },
+        { mode: 'table', icon: <Table2 size={20} />, label: 'Таблица' },
+        { mode: 'visualization', icon: <BarChart2 size={20} />, label: 'Визуализация' },
+    ];
 
     return (
         <div className="relative z-20 flex flex-col items-end">
@@ -20,11 +35,7 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
                 className="bg-white dark:bg-zinc-800 p-3 rounded-xl shadow-lg border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors"
                 aria-label="Смени изглед"
             >
-                {viewMode === 'map' ? (
-                    <MapIcon className="text-gray-700 dark:text-gray-200" size={24} />
-                ) : (
-                    <Table2 className="text-gray-700 dark:text-gray-200" size={24} />
-                )}
+                {getIcon()}
             </button>
 
             {/* Dropdown / Sheet */}
@@ -44,30 +55,21 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
                             className="absolute top-14 right-0 z-20 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-gray-100 dark:border-zinc-800 p-2 min-w-[200px]"
                         >
                             <div className="space-y-1">
-                                <button
-                                    onClick={() => { onChange('map'); setIsOpen(false); }}
-                                    className={clsx(
-                                        "w-full flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-colors",
-                                        viewMode === 'map' 
-                                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
-                                            : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
-                                    )}
-                                >
-                                    <MapIcon size={20} />
-                                    <span>Карта</span>
-                                </button>
-                                <button
-                                    onClick={() => { onChange('table'); setIsOpen(false); }}
-                                    className={clsx(
-                                        "w-full flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-colors",
-                                        viewMode === 'table' 
-                                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
-                                            : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
-                                    )}
-                                >
-                                    <Table2 size={20} />
-                                    <span>Таблица</span>
-                                </button>
+                                {options.map(opt => (
+                                    <button
+                                        key={opt.mode}
+                                        onClick={() => { onChange(opt.mode); setIsOpen(false); }}
+                                        className={clsx(
+                                            "w-full flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-colors",
+                                            viewMode === opt.mode 
+                                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" 
+                                                : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
+                                        )}
+                                    >
+                                        {opt.icon}
+                                        <span>{opt.label}</span>
+                                    </button>
+                                ))}
                             </div>
                         </motion.div>
                     </>

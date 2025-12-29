@@ -9,9 +9,10 @@ interface ElectionSelectorProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  singleMode?: boolean; // When true, selecting replaces instead of adding
 }
 
-export default function ElectionSelector({ selectedElections, onElectionChange, isOpen, onToggle, onClose }: ElectionSelectorProps) {
+export default function ElectionSelector({ selectedElections, onElectionChange, isOpen, onToggle, onClose, singleMode = false }: ElectionSelectorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -33,13 +34,19 @@ export default function ElectionSelector({ selectedElections, onElectionChange, 
 
   // Helper to toggle selection
   const handleToggle = (electionId: string) => {
-    if (selectedElections.includes(electionId)) {
-      // Don't allow deselecting the last one
-      if (selectedElections.length > 1) {
-        onElectionChange(selectedElections.filter(id => id !== electionId));
-      }
+    if (singleMode) {
+      // In single mode, just replace with the new selection
+      onElectionChange([electionId]);
     } else {
-      onElectionChange([...selectedElections, electionId]);
+      // Multi-mode toggle
+      if (selectedElections.includes(electionId)) {
+        // Don't allow deselecting the last one
+        if (selectedElections.length > 1) {
+          onElectionChange(selectedElections.filter(id => id !== electionId));
+        }
+      } else {
+        onElectionChange([...selectedElections, electionId]);
+      }
     }
   };
 

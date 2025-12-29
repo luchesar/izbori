@@ -13,6 +13,10 @@ interface MapProps {
   initialZoom?: number;
   initialCenter?: [number, number];
   onViewChange?: (zoom: number, center: [number, number]) => void;
+  // Visualization mode props
+  visualizationMode?: boolean;
+  selectedParty?: string | null;
+  partyColor?: string;
 }
 
 // Component to adjust map view bounds based on data
@@ -140,7 +144,19 @@ function MapViewRestorer({ targetZoom, targetCenter }: { targetZoom: number, tar
   return null;
 }
 
-export default function Map({ municipalities, places, selectedRegion, shouldNavigate, onRegionSelect, initialZoom = 7, initialCenter = [42.7339, 25.4858], onViewChange }: MapProps) {
+export default function Map({ 
+  municipalities, 
+  places, 
+  selectedRegion, 
+  shouldNavigate, 
+  onRegionSelect, 
+  initialZoom = 7, 
+  initialCenter = [42.7339, 25.4858], 
+  onViewChange,
+  visualizationMode = false,
+  selectedParty = null,
+  partyColor = '#888'
+}: MapProps) {
   const [zoom, setZoom] = useState(initialZoom);
 
   const onEachFeature = (feature: MunicipalityData, layer: L.Layer) => {
@@ -179,12 +195,32 @@ export default function Map({ municipalities, places, selectedRegion, shouldNavi
         onRegionSelect(feature);
       },
       mouseover: (e) => {
-        const l = e.target as L.Path;
-        l.setStyle({ fillOpacity: 0.15, color: '#991b1b', weight: 2 });
+        // In visualization mode, just add a highlight border
+        if (visualizationMode) {
+          const l = e.target as L.Path;
+          l.setStyle({ weight: 2 });
+        } else {
+          const l = e.target as L.Path;
+          l.setStyle({ fillOpacity: 0.15, color: '#991b1b', weight: 2 });
+        }
       },
       mouseout: (e) => {
         const l = e.target as L.Path;
-        if (!isSelected(feature)) {
+        // In visualization mode, restore the party-based styling
+        if (visualizationMode && selectedParty && partyColor) {
+          const partyResult = feature.electionData?.topParties?.find(
+            (p: { party: string }) => p.party === selectedParty
+          );
+          const percentage = partyResult?.percentage || 0;
+          // Same calculation as placesStyle
+          const opacity = percentage < 1 ? 0 : Math.min(0.95, Math.max(0.2, percentage / 100 * 2 + 0.15));
+          l.setStyle({
+            fillColor: partyColor,
+            fillOpacity: opacity,
+            color: partyColor,
+            weight: 0.5
+          });
+        } else if (!isSelected(feature)) {
             l.setStyle({ fillOpacity: 0, weight: 1, color: '#7f1d1d' });
         } else {
              l.setStyle({
@@ -228,6 +264,24 @@ export default function Map({ municipalities, places, selectedRegion, shouldNavi
   };
 
   const placesStyle = (feature: any) => {
+    // Visualization mode: color by party percentage
+    if (visualizationMode && selectedParty && partyColor) {
+      const partyResult = feature.electionData?.topParties?.find(
+        (p: { party: string }) => p.party === selectedParty
+      );
+      const percentage = partyResult?.percentage || 0;
+      // 0 if near 0, otherwise 0.2-0.95 range
+      const opacity = percentage < 1 ? 0 : Math.min(0.95, Math.max(0.2, percentage / 100 * 2 + 0.15));
+      return {
+        fillColor: partyColor,
+        fillOpacity: opacity,
+        color: partyColor,
+        weight: 0.5,
+        opacity: 1
+      };
+    }
+
+    // Normal mode
     const selected = isSelected(feature);
     return {
       fillColor: '#7f1d1d', // dark red-900
@@ -261,7 +315,8 @@ export default function Map({ municipalities, places, selectedRegion, shouldNavi
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-                    {municipalities.length > 0 && (
+                    {/* Hide municipalities in visualization mode */}
+                    {!visualizationMode && municipalities.length > 0 && (
                 <>
                     <GeoJSON 
                         key={`municipalities-layer-${selectedRegion && !('ekatte' in selectedRegion.properties) ? selectedRegion.properties.name : 'none'}`}
@@ -272,9 +327,10 @@ export default function Map({ municipalities, places, selectedRegion, shouldNavi
                     <MapBounds data={municipalities} />
                 </>
             )}
-            {(zoom > 9 || (selectedRegion && !('electionData' in selectedRegion))) && places && (
+            {/* In visualization mode, always show settlements; otherwise only when zoomed in */}
+            {(visualizationMode || zoom > 9 || (selectedRegion && !('electionData' in selectedRegion))) && places && (
                 <GeoJSON 
-                    key={`places-layer-${selectedRegion && 'ekatte' in selectedRegion.properties ? selectedRegion.properties.ekatte : 'none'}`}
+                    key={`places-layer-${visualizationMode ? selectedParty : ''}-${selectedRegion && 'ekatte' in selectedRegion.properties ? selectedRegion.properties.ekatte : 'none'}`}
                     data={places as any}
                     style={placesStyle}
                     onEachFeature={(feature, layer) => onEachPlaceFeature(feature as Place, layer)}

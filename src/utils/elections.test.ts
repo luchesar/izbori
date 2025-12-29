@@ -12,7 +12,8 @@ import {
   getTopPartiesFromLastNElections,
   getNationalResults,
   getMunicipalitiesByVoters,
-  getSettlementsByVotersInMunicipality
+  getSettlementsByVotersInMunicipality,
+  getPartyColor
 } from './elections';
 import type { MunicipalityData, Place, SelectedRegion } from '../types';
 
@@ -307,6 +308,30 @@ describe('Elections API & Analysis', () => {
                 expect(result[1].electionData?.eligibleVoters).toBe(100);
           });
       });
+  });
+
+  describe('getPartyColor', () => {
+    it('should return consistent color for same party name', () => {
+      const color1 = getPartyColor('ГЕРБ-СДС');
+      const color2 = getPartyColor('ГЕРБ-СДС');
+      expect(color1).toBe(color2);
+    });
+
+    it('should return different colors for different parties', () => {
+      const colorGerb = getPartyColor('ГЕРБ-СДС');
+      const colorBsp = getPartyColor('БСП');
+      const colorDps = getPartyColor('ДПС');
+      
+      // All should be different
+      expect(colorGerb).not.toBe(colorBsp);
+      expect(colorGerb).not.toBe(colorDps);
+      expect(colorBsp).not.toBe(colorDps);
+    });
+
+    it('should return valid HSL color string', () => {
+      const color = getPartyColor('Test Party');
+      expect(color).toMatch(/^hsl\(\d+, 70%, 45%\)$/);
+    });
   });
 
 });

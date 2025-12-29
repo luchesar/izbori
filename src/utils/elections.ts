@@ -55,6 +55,19 @@ export function formatElectionMonthYear(id: string): string {
   return `${monthName} ${year}${suffix}`;
 }
 
+/**
+ * Generates a consistent color for a party based on its name.
+ * Uses hash of party name to produce deterministic HSL color.
+ */
+export function getPartyColor(partyName: string): string {
+  let hash = 0;
+  for (let i = 0; i < partyName.length; i++) {
+    hash = partyName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash % 360);
+  return `hsl(${hue}, 70%, 45%)`;
+}
+
 // Define available dates and types likely available based on file scan
 export const AVAILABLE_ELECTIONS = [
   { id: '2013-05-12-ns', date: '2013-05-12', type: 'ns' },

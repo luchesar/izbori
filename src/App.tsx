@@ -6,15 +6,18 @@ import SearchBar from './components/SearchBar';
 import ElectionSelector from './components/ElectionSelector';
 import TableView from './components/TableView';
 import ViewSelector from './components/ViewSelector';
+import PartySelector from './components/PartySelector';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import type { MunicipalityData, SelectedRegion, Place } from './types';
+import type { MunicipalityData, SelectedRegion, Place, ViewMode } from './types';
 import { 
   loadMunicipalitiesGeoJSON, 
   loadSettlementsGeoJSON,
   getElectionData, 
   mergePlacesData,
   aggregateSettlementsToMunicipalities,
-  searchRegions 
+  searchRegions,
+  getNationalResults,
+  getPartyColor
 } from './utils/elections';
 
 function App() {
@@ -24,9 +27,12 @@ function App() {
     return new URLSearchParams(window.location.search);
   };
 
-  const [viewMode, setViewMode] = useState<'map' | 'table'>(() => {
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const params = getUrlParams();
-    return params.get('view') === 'table' ? 'table' : 'map';
+    const view = params.get('view');
+    if (view === 'table') return 'table';
+    if (view === 'visualization') return 'visualization';
+    return 'map';
   });
 
   const [selectedElections, setSelectedElections] = useState<string[]>(() => {
@@ -39,6 +45,14 @@ function App() {
     const params = getUrlParams();
     return params.get('table_mun') || null;
   });
+
+  // Visualization mode state
+  const [selectedParty, setSelectedParty] = useState<string | null>(() => {
+    const params = getUrlParams();
+    return params.get('party') || null;
+  });
+
+  const [partyList, setPartyList] = useState<Array<{ party: string; votes: number; percentage: number }>>([]);
 
   const [mapZoom, setMapZoom] = useState<number>(() => {
     const params = getUrlParams();
@@ -140,6 +154,27 @@ function App() {
     loadData();
   }, [selectedElections]);
 
+  // --- Load Party List for Visualization Mode ---
+  useEffect(() => {
+    if (viewMode === 'visualization' && selectedElections.length > 0) {
+      const loadParties = async () => {
+        try {
+          const results = await getNationalResults(selectedElections[0]);
+          setPartyList(results.topParties.slice(0, 10));
+          
+          // Auto-select top party if none selected or current not in list
+          const currentPartyExists = results.topParties.some(p => p.party === selectedParty);
+          if (!selectedParty || !currentPartyExists) {
+            setSelectedParty(results.topParties[0]?.party || null);
+          }
+        } catch (error) {
+          console.error('Failed to load party list:', error);
+        }
+      };
+      loadParties();
+    }
+  }, [viewMode, selectedElections]);
+
   // --- Resolve Initial Selection from URL ---
   useEffect(() => {
     if (!loading && initialSelectionId.current && municipalities.length > 0) {
@@ -185,6 +220,12 @@ function App() {
     
     // View Mode
     if (viewMode === 'table') params.set('view', 'table');
+    if (viewMode === 'visualization') params.set('view', 'visualization');
+    
+    // Party (visualization mode)
+    if (viewMode === 'visualization' && selectedParty) {
+      params.set('party', selectedParty);
+    }
     
     // Elections
     if (selectedElections.length !== 1 || selectedElections[0] !== '2024-10-27-ns') {
@@ -372,21 +413,36 @@ function App() {
                     <ViewSelector viewMode={viewMode} onChange={setViewMode} />
                 </div>
                 
-                {/* Row 2: ElectionSelector */}
-                <div className="flex items-center gap-2">
+                {/* Row 2: ElectionSelector on left, PartySelector on right (in viz mode) */}
+                <div className="flex items-center justify-between gap-2">
                     <ElectionSelector 
                       selectedElections={selectedElections}
-                      onElectionChange={setSelectedElections}
+                      onElectionChange={(ids) => {
+                        // In visualization mode, force single selection
+                        if (viewMode === 'visualization' && ids.length > 1) {
+                          setSelectedElections([ids[ids.length - 1]]);
+                        } else {
+                          setSelectedElections(ids);
+                        }
+                      }}
                       isOpen={selectorOpen}
                       onToggle={() => setSelectorOpen(!selectorOpen)}
                       onClose={() => setSelectorOpen(false)}
+                      singleMode={viewMode === 'visualization'}
                     />
+                    {viewMode === 'visualization' && (
+                      <PartySelector
+                        parties={partyList}
+                        selectedParty={selectedParty}
+                        onPartyChange={setSelectedParty}
+                      />
+                    )}
                 </div>
             </div>
         </div>
 
         <div className="flex-1 relative overflow-hidden">
-            <div className={clsx("absolute inset-0 z-0", viewMode === 'map' ? 'block' : 'hidden')}>
+            <div className={clsx("absolute inset-0 z-0", (viewMode === 'map' || viewMode === 'visualization') ? 'block' : 'hidden')}>
               <Map 
                   municipalities={municipalities}
                   places={places}
@@ -399,6 +455,9 @@ function App() {
                     setMapZoom(zoom);
                     setMapCenter(center);
                   }}
+                  visualizationMode={viewMode === 'visualization'}
+                  selectedParty={selectedParty}
+                  partyColor={selectedParty ? getPartyColor(selectedParty) : undefined}
               />
             </div>
             
