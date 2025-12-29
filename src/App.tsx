@@ -77,6 +77,7 @@ function App() {
 
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [shouldRestoreMapView, setShouldRestoreMapView] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
 
   // --- Data State ---
@@ -348,6 +349,11 @@ function App() {
         setMapCenter(newCenter);
       }
       
+      // Trigger map to restore view when navigating back/forward
+      if (zoom || (lat && lng)) {
+        setShouldRestoreMapView(true);
+      }
+      
       // Update selected region from URL
       const selectionId = params.get('selection');
       if (selectionId && municipalities.length > 0) {
@@ -507,6 +513,8 @@ function App() {
                   partyColor={selectedParty ? getPartyColor(selectedParty) : undefined}
                   anomaliesMode={viewMode === 'anomalies'}
                   fraudData={fraudData}
+                  shouldRestoreView={shouldRestoreMapView}
+                  onViewRestored={() => setShouldRestoreMapView(false)}
               />
             </div>
             

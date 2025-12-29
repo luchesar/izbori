@@ -23,6 +23,9 @@ interface MapProps {
     meta?: { elections: string[]; top_parties: string[]; threshold: number };
     settlements?: Record<string, { total_cv: number; party_cv: Record<string, number>; elections_count: number }>;
   } | null;
+  // Signal to restore view (triggered by browser history navigation)
+  shouldRestoreView?: boolean;
+  onViewRestored?: () => void;
 }
 
 // Component to adjust map view bounds based on data
@@ -113,16 +116,25 @@ function RegionNavigator({ region, shouldNavigate }: { region: SelectedRegion | 
   return null;
 }
 
-// Component to restore saved map view (from browser history) - only on initial mount
-function MapViewRestorer({ targetZoom, targetCenter }: { targetZoom: number, targetCenter: [number, number] }) {
+// Component to restore saved map view (from browser history) - only when triggered
+function MapViewRestorer({ 
+  targetZoom, 
+  targetCenter, 
+  shouldRestore, 
+  onRestored 
+}: { 
+  targetZoom: number, 
+  targetCenter: [number, number],
+  shouldRestore?: boolean,
+  onRestored?: () => void
+}) {
   const map = useMap();
-  const hasInitialized = React.useRef(false);
+  const hasInitiallyRestored = React.useRef(false);
 
   useEffect(() => {
-    // Only restore once on mount - don't react to prop changes
-    // This prevents jumping when selectors change
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
+    // Restore on initial mount or when explicitly triggered
+    if (!hasInitiallyRestored.current || shouldRestore) {
+      hasInitiallyRestored.current = true;
       const currentCenter = map.getCenter();
       const currentZoom = map.getZoom();
       
@@ -133,10 +145,15 @@ function MapViewRestorer({ targetZoom, targetCenter }: { targetZoom: number, tar
         Math.abs(currentCenter.lng - targetCenter[1]) > 0.0001;
       
       if (needsRestore) {
-        map.setView(targetCenter, targetZoom, { animate: false });
+        map.setView(targetCenter, targetZoom, { animate: shouldRestore ? true : false });
+      }
+      
+      // Notify parent that restore is complete
+      if (shouldRestore && onRestored) {
+        onRestored();
       }
     }
-  }, [map]); // Only depend on map, not on target values
+  }, [map, targetZoom, targetCenter, shouldRestore, onRestored]);
 
   return null;
 }
@@ -154,7 +171,9 @@ export default function Map({
   selectedParty = null,
   partyColor = '#888',
   anomaliesMode = false,
-  fraudData = null
+  fraudData = null,
+  shouldRestoreView = false,
+  onViewRestored
 }: MapProps) {
   const [zoom, setZoom] = useState(initialZoom);
 
@@ -393,7 +412,12 @@ export default function Map({
         >
             <ViewChangeHandler onViewChange={handleViewChange} />
             <RegionNavigator region={selectedRegion} shouldNavigate={shouldNavigate} />
-            <MapViewRestorer targetZoom={initialZoom} targetCenter={initialCenter} />
+            <MapViewRestorer 
+              targetZoom={initialZoom} 
+              targetCenter={initialCenter} 
+              shouldRestore={shouldRestoreView}
+              onRestored={onViewRestored}
+            />
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
