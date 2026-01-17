@@ -1,70 +1,118 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import path from 'path';
 import fs from 'fs';
+import Papa from 'papaparse';
 
-// Mock papaparse to handle file reading in Node environment
-vi.mock('papaparse', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('papaparse')>();
-  return {
-    ...actual,
-    default: {
-      ...actual.default,
-      parse: (url: any, config: any) => {
-        // Intercept download requests (which fail in Node without XHR/fetch)
-        if (typeof url === 'string' && config.download) {
-          try {
-             // Construct absolute path from project root
-             // url is like /assets/data/el_data/...
-             const relativePath = url.startsWith('/') ? `public${url}` : `public/${url}`;
-             const filePath = path.resolve(process.cwd(), relativePath);
-             
-             if (fs.existsSync(filePath)) {
-                 const content = fs.readFileSync(filePath, 'utf8');
-                 // Delegate to real parser with string content
-                 // We execute parse synchronously here, but trigger callback to mimic async behavior if needed
-                 // Papa.parse with string returns results synchronously usually
-                 const result = actual.default.parse(content, { ...config, download: false });
-                 
-                 if (config.complete) {
-                     // Execute callback on next tick to simulate async?
-                     // Or sync is fine for tests unless code relies on async gap
-                     config.complete(result);
-                 }
-                 return;
-             }
-          } catch (e) {
-              console.error(`Mock Papa Error reading ${url}:`, e);
-              if (config.error) config.error(e);
-              return;
-          }
-           if (config.error) config.error(new Error(`File not found: ${url}`));
-           return;
-        }
-        return actual.default.parse(url, config);
+// Helper to load and parse CSV file from api/data
+function loadCsvFile(csvPath: string): any[] {
+  const content = fs.readFileSync(csvPath, 'utf8');
+  const result = Papa.parse(content, { header: true, dynamicTyping: true, skipEmptyLines: true });
+  return result.data as any[];
+}
+
+// Helper to process election data (mimics API logic)
+function processElectionData(rows: any[], regionType: string): Record<string, any> {
+  const metaKeys = new Set(['municipality_name', 'region', 'region_name', 'n_stations', 'total', 'activity', 'nuts4', 'eligible_voters', 'total_valid', 'id', 'невалидни']);
+  const processed: Record<string, any> = {};
+  
+  for (const row of rows) {
+    let key: string;
+    if (regionType === 'municipality') {
+      key = row.municipality_name || row.nuts4;
+    } else {
+      const csvId = row.id;
+      if (csvId == null) continue;
+      key = String(csvId).padStart(5, '0');
+    }
+    if (!key) continue;
+
+    const partyResults: Record<string, number> = {};
+    for (const [col, value] of Object.entries(row)) {
+      if (!metaKeys.has(col) && typeof value === 'number') {
+        partyResults[col] = value;
       }
     }
-  };
-});
 
-// Mock global fetch for JSON files
+    const totalVotes = row.total || row.total_valid || 0;
+    const eligibleVoters = row.eligible_voters || 0;
+    const activity = row.activity !== undefined ? row.activity : (eligibleVoters > 0 ? totalVotes / eligibleVoters : 0);
+
+    processed[key] = {
+      id: key,
+      total: totalVotes,
+      results: partyResults,
+      meta: { activity, eligible: eligibleVoters }
+    };
+  }
+  return processed;
+}
+
+// Mock global fetch for API endpoints (reads from api/data/)
 global.fetch = vi.fn().mockImplementation(async (url: string) => {
-    if (typeof url === 'string' && url.includes('/assets/')) {
-        const relativePath = url.startsWith('/') ? `public${url}` : `public/${url}`;
-        const filePath = path.resolve(process.cwd(), relativePath);
-        if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf8');
-            return {
-                ok: true,
-                json: async () => JSON.parse(content),
-                text: async () => content
-            };
-        }
+  const apiDataDir = path.resolve(process.cwd(), 'api/data');
+  
+  // Handle API endpoints
+  if (url.startsWith('/api/ns/geo/municipalities')) {
+    const filePath = path.join(apiDataDir, 'geo/municipalities.json');
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { ok: true, json: async () => JSON.parse(content) };
+  }
+  
+  if (url.startsWith('/api/ns/geo/settlements')) {
+    const filePath = path.join(apiDataDir, 'geo/places.geojson');
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { ok: true, json: async () => JSON.parse(content) };
+  }
+  
+  if (url.startsWith('/api/ns/geo/places')) {
+    const filePath = path.join(apiDataDir, 'geo/places.json');
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { ok: true, json: async () => JSON.parse(content) };
+  }
+  
+  if (url.startsWith('/api/ns/parties')) {
+    const filePath = path.join(apiDataDir, 'parties.csv');
+    const content = fs.readFileSync(filePath, 'utf8');
+    const rows = Papa.parse(content, { header: true, delimiter: ';', skipEmptyLines: true }).data as any[];
+    const parties: Record<string, any> = {};
+    for (const row of rows) {
+      const name = row.party?.trim();
+      if (name) {
+        parties[name] = { name, label: row['party label']?.trim() || name, color: `hsl(0, 70%, 45%)` };
+      }
     }
-    return Promise.reject(new Error(`Fetch failed for ${url}`));
+    return { ok: true, json: async () => parties };
+  }
+  
+  if (url.startsWith('/api/ns/data/')) {
+    // Parse URL: /api/ns/data/{electionId}?region_type=...
+    const urlObj = new URL(url, 'http://localhost');
+    const electionId = urlObj.pathname.replace('/api/ns/data/', '');
+    const regionType = urlObj.searchParams.get('region_type') || 'settlement';
+    
+    // Parse election ID
+    let date = electionId;
+    let elType = 'ns';
+    const match = electionId.match(/^(\d{4}-\d{2}-\d{2})-(ns|ep)$/);
+    if (match) { date = match[1]; elType = match[2]; }
+    
+    const suffix = regionType === 'municipality' ? `${elType}_mun.csv` : `${elType}.csv`;
+    const csvPath = path.join(apiDataDir, 'el_data', `${date}${suffix}`);
+    
+    if (fs.existsSync(csvPath)) {
+      const rows = loadCsvFile(csvPath);
+      const processed = processElectionData(rows, regionType);
+      return { ok: true, json: async () => processed };
+    }
+    return { ok: false, status: 404 };
+  }
+  
+  return Promise.reject(new Error(`Fetch not mocked for: ${url}`));
 }) as any;
 
 // Import after mocking
 import { getElectionData, loadPlacesData, mergePlacesData, loadSettlementsGeoJSON, clearCache } from './elections';
+
 
 describe('Integration Tests - Real Data Files', () => {
     beforeEach(() => {

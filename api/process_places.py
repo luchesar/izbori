@@ -1,21 +1,37 @@
+#!/usr/bin/env python3
+"""
+Script to generate places.geojson by merging settlement geometry with metadata.
+
+Combines:
+- settlements_simplified1pct.json (GeoJSON with simplified settlement polygons)
+- place_data.csv (settlement metadata: EKATTE, names, oblast, obshtina)
+
+Outputs:
+- places.geojson (merged GeoJSON used by /ns/geo/settlements endpoint)
+"""
 
 import csv
 import json
-import os
+from pathlib import Path
 
-def load_geojson(filepath):
+# Base directory for data files (relative to this script)
+DATA_DIR = Path(__file__).parent / "data" / "geo"
+
+
+def load_geojson(filepath: Path) -> dict:
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
 
+
 def main():
-    base_dir = '/Users/lucho/prj/izbori-ui/public/assets/data/geo'
-    csv_path = os.path.join(base_dir, 'place_data.csv')
-    geojson_path = os.path.join(base_dir, 'settlements_simplified1pct.json')
-    output_path = os.path.join(base_dir, 'places.geojson')
+    csv_path = DATA_DIR / 'place_data.csv'
+    geojson_path = DATA_DIR / 'settlements_simplified1pct.json'
+    output_path = DATA_DIR / 'places.geojson'
     
     print(f"Loading GeoJSON from {geojson_path}...")
     geojson_data = load_geojson(geojson_path)
     
+    # Build lookup map by EKATTE code (called 'ncode' in the source GeoJSON)
     feature_map = {}
     for feature in geojson_data['features']:
         props = feature.get('properties', {})
@@ -45,6 +61,7 @@ def main():
             if not raw_ekatte:
                 continue
                 
+            # Normalize EKATTE to 5 digits with leading zeros
             ekatte = raw_ekatte.zfill(5)
             
             if ekatte in feature_map:
@@ -64,8 +81,6 @@ def main():
                     }
                     features_out.append(new_feature)
                     matched_count += 1
-            else:
-                pass
 
     print(f"Processed {total_count} CSV rows.")
     print(f"Matched {matched_count} places with geometry.")
@@ -79,6 +94,7 @@ def main():
         json.dump(out_collection, f, ensure_ascii=False, separators=(',', ':'))
         
     print(f"Saved {len(features_out)} places to {output_path}")
+
 
 if __name__ == '__main__':
     main()
