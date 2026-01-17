@@ -423,6 +423,8 @@ function App() {
     return searchRegions(query, municipalities, places);
   };
 
+
+
   // Comparative data calculation
   const comparativeData = selectedRegion ? selectedElections.reduce((acc, electionId) => {
     const data = electionsData[electionId];
