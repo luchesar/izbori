@@ -471,5 +471,13 @@ export async function getSettlementsByVotersInMunicipality(electionId: string, m
     });
 }
 
+export async function getHistory(regionType: 'municipality' | 'settlement', regionId: string): Promise<any[]> {
+    return withCache(`history-${regionType}-${regionId}`, async () => {
+        const response = await fetch(`${API_BASE_URL}/ns/history?region_type=${regionType}&region_id=${regionId}`);
+        if (!response.ok) throw new Error('Failed to fetch history');
+        return response.json();
+    });
+}
+
 // Preload parties on module load for synchronous getPartyColor access
 fetchParties().catch(() => {});

@@ -68,4 +68,4 @@ export interface PlaceGeoJSON {
 
 export type SelectedRegion = MunicipalityData | Place;
 
-export type ViewMode = 'map' | 'table' | 'visualization' | 'anomalies';
+export type ViewMode = 'map' | 'table' | 'visualization' | 'anomalies' | 'history';

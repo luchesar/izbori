@@ -17,8 +17,10 @@ import {
   aggregateSettlementsToMunicipalities,
   searchRegions,
   getNationalResults,
-  getPartyColor
+  getPartyColor,
+  getHistory,
 } from './utils/elections';
+import HistorySheet from './components/HistorySheet';
 
 function App() {
   // --- Initialization from URL ---
@@ -86,11 +88,15 @@ function App() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Fraud analysis data
   const [fraudData, setFraudData] = useState<{
     meta?: { elections: string[]; top_parties: string[]; threshold: number };
     settlements?: Record<string, { total_cv: number; party_cv: Record<string, number>; elections_count: number }>;
   } | null>(null);
+
+  // History Mode State
+  const [historyViewParties, setHistoryViewParties] = useState<string[]>([]);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   // --- Data Loading ---
   useEffect(() => {
@@ -170,9 +176,9 @@ function App() {
     }
   }, [viewMode]);
 
-  // --- Load Party List for Visualization Mode ---
+  // --- Load Party List for Visualization/History Mode ---
   useEffect(() => {
-    if (viewMode === 'visualization' && selectedElections.length > 0) {
+    if ((viewMode === 'visualization' || viewMode === 'history') && selectedElections.length > 0) {
       const loadParties = async () => {
         try {
           const results = await getNationalResults(selectedElections[0]);
@@ -215,6 +221,26 @@ function App() {
       loadFraudData();
     }
   }, [viewMode, fraudData]);
+
+  // --- Load History Data ---
+  useEffect(() => {
+    if (viewMode === 'history' && selectedRegion) {
+        const isSettlement = 'ekatte' in selectedRegion.properties;
+        const regionType = isSettlement ? 'settlement' : 'municipality';
+        const regionId = isSettlement
+          ? selectedRegion.properties.ekatte
+          : (selectedRegion.properties.nuts4 || selectedRegion.properties.name);
+        
+        // Prevent loading if regionId is missing or invalid
+        if (!regionId) return;
+
+        setIsHistoryLoading(true);
+        getHistory(regionType, regionId)
+            .then(setHistoryData)
+            .catch(err => console.error("Failed to load history:", err))
+            .finally(() => setIsHistoryLoading(false));
+    }
+  }, [viewMode, selectedRegion]);
 
   // --- Resolve Initial Selection from URL ---
   useEffect(() => {
@@ -463,6 +489,7 @@ function App() {
                 
                 {/* Row 2: ElectionSelector on left, PartySelector on right (in viz mode) */}
                 <div className="flex items-center justify-between gap-2">
+                    {viewMode !== 'history' && (
                     <ElectionSelector 
                       selectedElections={selectedElections}
                       onElectionChange={(ids) => {
@@ -478,12 +505,21 @@ function App() {
                       onClose={() => setSelectorOpen(false)}
                       singleMode={viewMode === 'visualization'}
                     />
+                    )}
                     {viewMode === 'visualization' && (
                       <PartySelector
                         parties={partyList}
                         selectedParty={selectedParty}
                         onPartyChange={setSelectedParty}
                       />
+                    )}
+                    {viewMode === 'history' && (
+                        <PartySelector
+                            parties={partyList}
+                            selectedParty={historyViewParties}
+                            onPartyChange={setHistoryViewParties}
+                            multiSelect={true}
+                        />
                     )}
                     {viewMode === 'anomalies' && (
                       <PartySelector
@@ -497,7 +533,7 @@ function App() {
         </div>
 
         <div className="flex-1 relative overflow-hidden">
-            <div className={clsx("absolute inset-0 z-0", (viewMode === 'map' || viewMode === 'visualization' || viewMode === 'anomalies') ? 'block' : 'hidden')}>
+            <div className={clsx("absolute inset-0 z-0", (viewMode === 'map' || viewMode === 'visualization' || viewMode === 'anomalies' || viewMode === 'history') ? 'block' : 'hidden')}>
               <Map 
                   municipalities={municipalities}
                   places={places}
@@ -534,6 +570,7 @@ function App() {
             )}
         </div>
         
+        {viewMode !== 'history' && (
         <BottomSheet 
           data={selectedRegion} 
           selectedElections={selectedElections}
@@ -542,6 +579,15 @@ function App() {
           onScroll={() => setSelectorOpen(false)}
           anomaliesMode={viewMode === 'anomalies'}
           selectedParty={selectedParty}
+        />
+        )}
+        
+        <HistorySheet
+            isOpen={!!selectedRegion && viewMode === 'history'}
+            onClose={handleCloseSheet}
+            data={historyData}
+            selectedParties={historyViewParties}
+            isLoading={isHistoryLoading}
         />
       </div>
     </ErrorBoundary>

@@ -340,3 +340,34 @@ def load_fraud_analysis() -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
+def get_history_data(region_type: str, region_id: str) -> list[dict]:
+    """
+    Get voting history for a specific region across all available elections.
+    """
+    history = []
+    # Sort elections by date
+    sorted_elections = sorted(AVAILABLE_ELECTIONS, key=lambda x: x["date"])
+    
+    for election in sorted_elections:
+        eid = election["id"]
+        # Fetch data for this election and region
+        # Reusing get_election_data ensures consistent filtering and processing
+        data_map = get_election_data(eid, region_type, region_id=region_id)
+        
+        if data_map:
+            # We expect single entry for the specific region
+            # Extract it from the dict
+            item = next(iter(data_map.values()))
+            
+            history.append({
+                "electionId": eid,
+                "date": election["date"],
+                "type": election["type"],
+                "formattedDate": format_election_date(eid),
+                "total": item["total"],
+                "results": item["results"],
+                "meta": item["meta"]
+            })
+            
+    return history

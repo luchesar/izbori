@@ -22,6 +22,7 @@ from services.elections import (
     get_top_parties_from_last_n_elections,
     format_election_date,
     load_fraud_analysis,
+    get_history_data,
 )
 
 router = APIRouter()
@@ -195,6 +196,20 @@ async def get_top_parties(
     return etag_response(request, data, cache_max_age=3600)  # 1h
 
 
+
+
+@router.get("/history")
+async def get_history(
+    request: Request,
+    region_type: str = Query(..., description="'municipality' or 'settlement'"),
+    region_id: str = Query(..., description="Region ID (NUTS4/Name for municipality, EKATTE for settlement)"),
+):
+    """
+    Get voting history for a specific region across all elections.
+    """
+    data = get_history_data(region_type, region_id)
+    return etag_response(request, data, cache_max_age=3600)
+
 @router.get("/stats/fraud")
 async def get_fraud_analysis(request: Request):
     """
@@ -206,3 +221,4 @@ async def get_fraud_analysis(request: Request):
     """
     data = load_fraud_analysis()
     return etag_response(request, data, cache_max_age=86400)  # 24h - rarely changes
+

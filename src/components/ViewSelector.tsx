@@ -1,4 +1,4 @@
-import { Map as MapIcon, Table2, BarChart2, AlertTriangle, X } from 'lucide-react';
+import { Map as MapIcon, Table2, BarChart2, AlertTriangle, History, X } from 'lucide-react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,7 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
             case 'table': return <Table2 className="text-gray-700 dark:text-gray-200" size={24} />;
             case 'visualization': return <BarChart2 className="text-gray-700 dark:text-gray-200" size={24} />;
             case 'anomalies': return <AlertTriangle className="text-gray-700 dark:text-gray-200" size={24} />;
+            case 'history': return <History className="text-gray-700 dark:text-gray-200" size={24} />;
         }
     };
 
@@ -27,6 +28,7 @@ export default function ViewSelector({ viewMode, onChange }: ViewSelectorProps) 
         { mode: 'table', icon: <Table2 size={20} />, label: 'Таблица' },
         { mode: 'visualization', icon: <BarChart2 size={20} />, label: 'Визуализация' },
         { mode: 'anomalies', icon: <AlertTriangle size={20} />, label: 'Аномалии' },
+        { mode: 'history', icon: <History size={20} />, label: 'История' },
     ];
 
     return (
