@@ -63,10 +63,10 @@ describe('BottomSheet', () => {
             expect(screen.getByText('ДПС-Доган')).toBeInTheDocument();
             expect(screen.getByText('ДПС-Пеев')).toBeInTheDocument();
 
-            // Check that percentages are displayed (with .toFixed(2))
-            expect(screen.getByText(/48\.30%/)).toBeInTheDocument();
-            expect(screen.getByText(/26\.50%/)).toBeInTheDocument();
-            expect(screen.getByText(/11\.00%/)).toBeInTheDocument();
+            // Check that percentages are displayed (with .toFixed(1)) along with votes
+            expect(screen.getByText(/48\.3%/)).toBeInTheDocument();
+            expect(screen.getByText(/26\.5%/)).toBeInTheDocument();
+            expect(screen.getByText(/11\.0%/)).toBeInTheDocument();
         });
 
         it('should display turnout information for settlements', () => {
@@ -178,8 +178,8 @@ describe('BottomSheet', () => {
             expect(screen.getByText('Пловдив')).toBeInTheDocument();
             expect(screen.getByText('ГЕРБ-СДС')).toBeInTheDocument();
             expect(screen.getByText('ПП/ДБ')).toBeInTheDocument();
-            expect(screen.getByText(/35\.00%/)).toBeInTheDocument();
-            expect(screen.getByText(/21\.00%/)).toBeInTheDocument();
+            expect(screen.getByText(/35\.0%/)).toBeInTheDocument();
+            expect(screen.getByText(/21\.0%/)).toBeInTheDocument();
         });
     });
 

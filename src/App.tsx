@@ -538,6 +538,8 @@ function App() {
           comparativeData={comparativeData}
           onClose={handleCloseSheet} 
           onScroll={() => setSelectorOpen(false)}
+          anomaliesMode={viewMode === 'anomalies'}
+          selectedParty={selectedParty}
         />
       </div>
     </ErrorBoundary>

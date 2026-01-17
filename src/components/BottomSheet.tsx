@@ -3,9 +3,14 @@ import type { PanInfo } from 'framer-motion';
 import { X, Users, Activity } from 'lucide-react';
 import type { SelectedRegion, MunicipalityData } from '../types';
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 import { formatElectionDate, formatElectionMonthYear } from '../utils/elections';
+
+const MIN_SHEET_HEIGHT = 15; // Minimum height as percentage of viewport
+const MAX_SHEET_HEIGHT = 85; // Maximum height as percentage of viewport
+const DEFAULT_SHEET_HEIGHT = 45; // Default height when opened
+const CLOSE_THRESHOLD = 10; // Close if dragged below this percentage
 
 interface BottomSheetProps {
   data: SelectedRegion | null;
@@ -13,6 +18,8 @@ interface BottomSheetProps {
   comparativeData: Record<string, SelectedRegion | null>;
   onClose: () => void;
   onScroll?: () => void;
+  anomaliesMode?: boolean;
+  selectedParty?: string | null;
 }
 
 
@@ -20,7 +27,13 @@ interface BottomSheetProps {
 
 
 // Component for a single election result (either full or compact)
-function ElectionResultView({ data, electionId, compact = false }: { data: SelectedRegion | null, electionId: string, compact?: boolean }) {
+function ElectionResultView({ data, electionId, compact = false, anomaliesMode = false, filterParty = null }: { 
+  data: SelectedRegion | null, 
+  electionId: string, 
+  compact?: boolean,
+  anomaliesMode?: boolean,
+  filterParty?: string | null
+}) {
   if (!data || !hasElectionData(data)) {
      return (
         <div className={clsx("flex flex-col items-center justify-center text-gray-500 py-8", compact && "min-w-[280px] h-full border-r border-gray-100 dark:border-zinc-800")}>
@@ -67,18 +80,20 @@ function ElectionResultView({ data, electionId, compact = false }: { data: Selec
                     Резултати
                 </h3>
             )}
-            <div className="space-y-3">
-                {data.electionData?.topParties?.map((result, idx) => (
+            <div className="space-y-2">
+                {data.electionData?.topParties
+                    ?.filter(result => !anomaliesMode || !filterParty || result.party === filterParty)
+                    .map((result, idx) => (
                     <div key={result.party} className="group">
-                        <div className="flex justify-between items-center text-sm mb-1">
+                        <div className="flex justify-between items-center text-sm mb-0.5">
                             <span className="font-medium text-gray-700 dark:text-gray-200 truncate pr-2" title={result.party}>
                                 {result.party}
                             </span>
                             <span className="font-mono text-gray-900 dark:text-white shrink-0">
-                                {result.percentage.toFixed(2)}%
+                                {result.votes.toLocaleString()} ({result.percentage.toFixed(1)}%)
                             </span>
                         </div>
-                        <div className="h-2 w-full bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <div 
                                 className={clsx(
                                     "h-full rounded-full transition-all duration-500 ease-out",
@@ -89,9 +104,6 @@ function ElectionResultView({ data, electionId, compact = false }: { data: Selec
                                 )}
                                 style={{ width: `${result.percentage}%` }}
                             />
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                                {result.votes.toLocaleString()} гласа
                         </div>
                     </div>
                 ))}
@@ -106,60 +118,72 @@ const hasElectionData = (d: SelectedRegion): d is MunicipalityData => {
   return 'electionData' in d && !!d.electionData;
 };
 
-export default function BottomSheet({ data, selectedElections, comparativeData, onClose, onScroll }: BottomSheetProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export default function BottomSheet({ data, selectedElections, comparativeData, onClose, onScroll, anomaliesMode = false, selectedParty = null }: BottomSheetProps) {
+  // Sheet height as percentage of viewport (0 = closed, 100 = full screen)
+  const [sheetHeight, setSheetHeight] = useState(DEFAULT_SHEET_HEIGHT);
+  const dragStartHeight = useRef(sheetHeight);
 
-  /* Removed local hasElectionData definition as it's now outside */
+  const handleDrag = useCallback((_: any, info: PanInfo) => {
+    // Convert pixel offset to viewport percentage
+    const viewportHeight = window.innerHeight;
+    const heightChange = (-info.offset.y / viewportHeight) * 100;
+    const newHeight = Math.min(MAX_SHEET_HEIGHT, Math.max(MIN_SHEET_HEIGHT, dragStartHeight.current + heightChange));
+    setSheetHeight(newHeight);
+  }, []);
 
-  const handleDragEnd = (_: any, info: PanInfo) => {
-    if (info.offset.y > 100) {
-      // Dragged down - close
+  const handleDragStart = useCallback(() => {
+    dragStartHeight.current = sheetHeight;
+  }, [sheetHeight]);
+
+  const handleDragEnd = useCallback((_: any, info: PanInfo) => {
+    // Close if dragged below threshold
+    if (sheetHeight < CLOSE_THRESHOLD) {
       onClose();
-    } else if (info.offset.y < -100 && !isExpanded) {
-      // Dragged up - expand
-      setIsExpanded(true);
-    } else if (info.offset.y > 50 && isExpanded) {
-      // Dragged down from expanded - collapse to half
-      setIsExpanded(false);
+      return;
     }
-  };
+    // Otherwise, keep at current height (already set by handleDrag)
+  }, [sheetHeight, onClose]);
 
   return (
     <AnimatePresence>
       {data && (
         <>
-          {/* Backdrop - only visible when expanded */}
-          {isExpanded && (
+          {/* Backdrop - visible when sheet is expanded (height > 60%) */}
+          {sheetHeight > 60 && (
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.3 }}
+              animate={{ opacity: (sheetHeight - 60) / 100 }} 
               exit={{ opacity: 0 }}
-              onClick={() => setIsExpanded(false)}
+              onClick={() => setSheetHeight(DEFAULT_SHEET_HEIGHT)}
               className="fixed inset-0 bg-black z-10"
             />
           )}
           
           {/* Sheet */}
           <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: isExpanded ? 0 : '50%' }}
-            exit={{ y: '100%' }}
+            initial={{ height: 0 }}
+            animate={{ height: `${sheetHeight}vh` }}
+            exit={{ height: 0 }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={0.2}
+            dragElastic={0.1}
+            dragMomentum={false}
+            onDragStart={handleDragStart}
+            onDrag={handleDrag}
             onDragEnd={handleDragEnd}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className={clsx(
-                "fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 flex flex-col transition-all duration-300 max-h-[85vh]",
+                "fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20 flex flex-col",
                 selectedElections.length > 1 ? "md:max-w-4xl md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4" : "md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-2xl md:bottom-4"
             )}
+            style={{ touchAction: 'none' }}
           >
-            {/* Handle bar - tap to expand/collapse */}
+            {/* Handle bar - tap to toggle between half and expanded */}
             <div 
-              className="w-full flex justify-center pt-3 pb-1 cursor-pointer" 
-              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full flex justify-center pt-3 pb-1 cursor-ns-resize select-none" 
+              onClick={() => setSheetHeight(sheetHeight < 60 ? MAX_SHEET_HEIGHT : DEFAULT_SHEET_HEIGHT)}
             >
-                <div className="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full cursor-pointer" />
+                <div className="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full" />
             </div>
 
             {/* Header */}
@@ -206,7 +230,9 @@ export default function BottomSheet({ data, selectedElections, comparativeData, 
                     // Single view
                     <ElectionResultView 
                         data={comparativeData[selectedElections[0]] || data} 
-                        electionId={selectedElections[0]} 
+                        electionId={selectedElections[0]}
+                        anomaliesMode={anomaliesMode}
+                        filterParty={selectedParty}
                     />
                 ) : (
                     // Comparative view
@@ -216,7 +242,9 @@ export default function BottomSheet({ data, selectedElections, comparativeData, 
                                 <ElectionResultView 
                                     data={comparativeData[electionId]} 
                                     electionId={electionId} 
-                                    compact={true} 
+                                    compact={true}
+                                    anomaliesMode={anomaliesMode}
+                                    filterParty={selectedParty}
                                 />
                             </div>
                         ))}
