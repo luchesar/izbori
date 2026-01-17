@@ -331,3 +331,12 @@ def get_top_parties_from_last_n_elections(n: int = 3) -> list[str]:
     # Sort and pick top 5
     sorted_parties = sorted(global_party_votes.items(), key=lambda x: x[1], reverse=True)
     return [party for party, _ in sorted_parties[:5]]
+
+
+@lru_cache(maxsize=1)
+def load_fraud_analysis() -> dict:
+    """Load and cache fraud analysis data."""
+    path = DATA_DIR / "fraud_analysis.json"
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+

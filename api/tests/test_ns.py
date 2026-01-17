@@ -147,3 +147,35 @@ class TestRootEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+
+
+class TestETagCaching:
+    """Tests for ETag caching functionality."""
+
+    def test_returns_etag_header(self):
+        response = client.get("/ns/elections")
+        assert response.status_code == 200
+        assert "etag" in response.headers
+
+    def test_returns_cache_control_header(self):
+        response = client.get("/ns/geo/municipalities")
+        assert response.status_code == 200
+        assert "cache-control" in response.headers
+        assert "max-age" in response.headers["cache-control"]
+
+    def test_304_on_matching_etag(self):
+        # First request to get ETag
+        response1 = client.get("/ns/elections")
+        assert response1.status_code == 200
+        etag = response1.headers["etag"]
+        
+        # Second request with If-None-Match
+        response2 = client.get("/ns/elections", headers={"If-None-Match": etag})
+        assert response2.status_code == 304
+        assert response2.content == b""  # No body on 304
+
+    def test_200_on_different_etag(self):
+        response = client.get("/ns/elections", headers={"If-None-Match": "invalid-etag"})
+        assert response.status_code == 200
+        assert len(response.json()) > 0
+

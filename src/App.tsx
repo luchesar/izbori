@@ -196,7 +196,7 @@ function App() {
     if (viewMode === 'anomalies' && !fraudData) {
       const loadFraudData = async () => {
         try {
-          const response = await fetch('/assets/data/fraud_analysis.json');
+          const response = await fetch('/api/ns/stats/fraud');
           const data = await response.json();
           setFraudData(data);
           // Use top parties from fraud analysis for the party selector
